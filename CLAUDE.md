@@ -36,8 +36,9 @@ Never add Claude/AI attribution (no `Co-Authored-By`, no "Generated with Claude 
 - `npm run dev` — dev server (http://localhost:5173)
 - `npm run build` — type-check + production build into `dist/` (relative paths, works from any subfolder)
 - `npm run preview` — serve the built `dist/`
-- `npm run models` — rebuild the World 1 models from `tools/w1-models/` → `public/models/w1/*.glb` (Draco),
-  `public/masks/*.png`, and point the level JSONs at them (other level fields are kept)
+- `npm run models` — rebuild the authored models from `tools/models/` (`kit.mjs` shatter/junk tools, `w1.mjs`,
+  `w2.mjs`) → `public/models/w<N>/*.glb` (Draco) + `public/masks/*.png`. World 1: points the level JSONs at the
+  models (other fields kept). World 2: writes the whole assembly level JSON from `w2.mjs` (piece offsets/scales computed)
 
 Level editor (dev only, never built): `npm run dev`, then open http://localhost:5173/tools/level-editor.html.
 Load a GLB (Draco OK) or an existing level, rotate to the solution, "Set solution here", fill the form, "Save to project"
@@ -49,7 +50,7 @@ Dev URL params: `?level=N` jumps to level N (1-based), `?debug=1` shows the live
 Automated checks: in dev builds `window.__casted` is the `Game` instance (`__casted.level` is the
 `LevelController`: `state`, `iou`, `solutions`, `target`). Headless Chrome via puppeteer-core works with
 `--use-angle=swiftshader --enable-unsafe-swiftshader`; set the object to `solutions[0]` to verify IoU 1.0 and the
-snap → reveal → done flow, and drag with `page.mouse` to verify input. Swiftshader runs slowly, so allow ~4 s for the reveal.
+snap → reveal → done flow (assembly levels: `__casted.level.solveAll()`), and drag with `page.mouse` to verify input. Swiftshader runs slowly, so allow ~4 s for the reveal.
 
 ## Code layout (mirrors the design doc's folder structure)
 
@@ -62,7 +63,8 @@ snap → reveal → done flow, and drag with `page.mouse` to verify input. Swift
 - `src/levels/` — `levels.ts` (schema + loads the JSON), `LevelLoader.ts` (procedural objects + GLB/Draco, lazy-loaded),
   `shapes.ts` (2D silhouettes), `junkify.ts` (procedural junk objects),
   `LevelController.ts` (state machine: intro → playing → snapping → reveal → win),
-  `Daily.ts` (date-seeded Daily Shadow, share text), `Endless.ts` (run timer/score, target generator)
+  `Daily.ts` (date-seeded Daily Shadow, share text), `Endless.ts` (run timer/score, target generator);
+  world palettes (`ATTIC`, `KITCHEN`) live in `src/shadow/ShadowScene.ts`
 - `src/tools/LevelEditor.ts` + `tools/level-editor.html` — dev-only level editor; its save endpoint is a dev-server
   plugin in `vite.config.ts`
 - `src/ui/` — HTML/CSS overlay (HUD, win screen, toasts)
@@ -74,6 +76,9 @@ snap → reveal → done flow, and drag with `page.mouse` to verify input. Swift
 - No frameworks for UI: vanilla TS + CSS over the canvas.
 - Target masks are rendered at level load from the solution rotation with the same mask code path, so a perfect
   solve always scores 1.0. (The editor's PNG masks are only used by the Album.)
+- Assembly levels (World 2+) have `pieces` instead of `object`: each piece has its own model, light-space `offset`,
+  `scale`, axes, start offset and optional `locked` (starts solved). The target is all pieces' shadows together; the
+  arcball turns the active piece (grab it, or Tab). Single-object levels are one piece pivoting on `objectRoot`.
 - Level `solution` quaternions are stored in light space (relative to the mask camera); omitted = identity.
   GLB models are normalised to a bounding-sphere radius of 1.3 by `normalizeModel`, in both the editor and the game.
 - Keep Vite `base: './'` (portals require relative paths).

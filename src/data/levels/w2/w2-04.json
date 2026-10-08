@@ -1,0 +1,32 @@
+{
+  "id": "w2-04",
+  "world": 2,
+  "targetName": "Hot-air balloon",
+  "pieces": [
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/balloon_junk.glb"
+      },
+      "offset": [0, 0.3825, 0.637],
+      "scale": 0.7877,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [-85, 100, 35]
+    },
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/basket_junk.glb"
+      },
+      "offset": [0, -0.6959, -0.637],
+      "scale": 0.471,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [100, -75, -50]
+    }
+  ],
+  "threshold": 0.9,
+  "parTime": 60,
+  "allowMirror": false,
+  "reveal": "sway",
+  "mask": "masks/w2-04.png"
+}

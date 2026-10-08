@@ -7,7 +7,10 @@ import * as THREE from 'three';
 import { Arcball } from '../core/Arcball';
 import { Renderer } from '../core/Renderer';
 import { LevelLoader, type LevelObjectInstance } from '../levels/LevelLoader';
-import { LEVELS, REVEALS, type Axis, type LevelDef, type LevelObject, type RevealKind } from '../levels/levels';
+import { LEVELS, REVEALS, isSingle, type Axis, type LevelObject, type RevealKind, type SingleLevel } from '../levels/levels';
+
+/** The editor authors single-object levels; assembly levels (World 2) come from npm run models. */
+const SINGLE = LEVELS.filter(isSingle);
 import { MaskRenderer } from '../shadow/MaskRenderer';
 import { TargetMask, blurToBytes, rgbaToMask, type Mask } from '../shadow/Matcher';
 import { ATTIC, LIGHT_DIR, OBJECT_POS, ShadowScene } from '../shadow/ShadowScene';
@@ -51,7 +54,7 @@ const say = (msg: string, cls = '') => {
 
 const existing = $<HTMLSelectElement>('existing');
 existing.append(new Option('—', ''));
-for (const l of LEVELS) existing.append(new Option(`${l.id} · ${l.targetName}`, l.id));
+for (const l of SINGLE) existing.append(new Option(`${l.id} · ${l.targetName}`, l.id));
 const reveal = $<HTMLSelectElement>('reveal');
 for (const r of REVEALS) reveal.append(new Option(r, r));
 
@@ -69,10 +72,10 @@ function useObject(obj: LevelObjectInstance) {
 }
 
 existing.addEventListener('change', async () => {
-  const level = LEVELS.find((l) => l.id === existing.value);
+  const level = SINGLE.find((l) => l.id === existing.value);
   if (!level) return;
   try {
-    useObject(await loader.load(level));
+    useObject((await loader.load(level))[0]);
   } catch (e) {
     return say(`Could not load ${level.id}: ${(e as Error).message}`, 'bad');
   }
@@ -261,7 +264,7 @@ for (const id of ['so-x', 'so-y', 'so-z']) $(id).addEventListener('change', runC
 
 // --- form, export -----------------------------------------------------------------------------
 
-function fillForm(l: LevelDef) {
+function fillForm(l: SingleLevel) {
   $('world').value = String(l.world);
   $('id').value = l.id;
   $('targetName').value = l.targetName;
@@ -274,7 +277,7 @@ function fillForm(l: LevelDef) {
   $('allowMirror').checked = l.allowMirror;
 }
 
-function buildLevel(): LevelDef {
+function buildLevel(): SingleLevel {
   if (!source || !solution) throw new Error('Load an object and set its solution first.');
   const world = Number($('world').value);
   const id = $('id').value.trim();
@@ -298,7 +301,7 @@ function buildLevel(): LevelDef {
     world,
     targetName,
     object,
-    ...(identity ? {} : { solution: [round(local.x), round(local.y), round(local.z), round(local.w)] as LevelDef['solution'] }),
+    ...(identity ? {} : { solution: [round(local.x), round(local.y), round(local.z), round(local.w)] as SingleLevel['solution'] }),
     freeAxes: freeAxes(),
     startOffset: startOffset(),
     threshold: Number($('threshold').value),

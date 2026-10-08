@@ -15,7 +15,7 @@ export interface InputHandlers {
 const DEG_PER_PX_MOUSE = 0.5;
 const DEG_PER_PX_TOUCH = 0.8;
 /** Keys the host portal page must never scroll on. */
-const BLOCKED_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'PageUp', 'PageDown']);
+const BLOCKED_KEYS = new Set(['Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'PageUp', 'PageDown']);
 
 /**
  * Pointer / touch / keyboard → rotate intents. One-finger or left drag rotates; Shift-drag, right-drag or a

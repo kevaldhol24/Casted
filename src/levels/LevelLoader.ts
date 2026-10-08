@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { junkify } from './junkify';
-import type { LevelDef } from './levels';
+import { levelPieces, type LevelDef, type LevelObject } from './levels';
 import { SILHOUETTES } from './shapes';
 
 /** Largest silhouette side of a procedural object, in world units. */
@@ -27,26 +27,30 @@ export class LevelLoader {
   private loader: Promise<GLTFLoader> | null = null;
   private models = new Map<string, Promise<THREE.Object3D>>();
 
+  /** @param palette procedural object colours (the world's palette; load() can override per level). */
   constructor(private palette: string[]) {}
 
-  async load(level: LevelDef): Promise<LevelObjectInstance> {
-    const o = level.object;
-    if (o.kind === 'procedural') return this.procedural(level);
+  /** Every piece's object for a level (one for a single-object level), in piece order. */
+  load(level: LevelDef, palette = this.palette): Promise<LevelObjectInstance[]> {
+    return Promise.all(levelPieces(level).map((p) => this.loadObject(p.object, palette, level.id)));
+  }
+
+  async loadObject(o: LevelObject, palette = this.palette, id = '?'): Promise<LevelObjectInstance> {
+    if (o.kind === 'procedural') return this.procedural(o, palette, id);
     const template = await this.model(o.url);
     return { root: template.clone(true), dispose() {} };
   }
 
-  /** Start fetching a level's model in the background (the next level, while this one plays). */
+  /** Start fetching a level's models in the background (the next level, while this one plays). */
   preload(level: LevelDef | undefined) {
-    if (level?.object.kind === 'model') this.model(level.object.url).catch(() => {});
+    if (!level) return;
+    for (const p of levelPieces(level)) if (p.object.kind === 'model') this.model(p.object.url).catch(() => {});
   }
 
-  private procedural(level: LevelDef): LevelObjectInstance {
-    if (level.object.kind !== 'procedural') throw new Error('not procedural');
-    const { silhouette, seed, junk } = level.object;
-    const make = SILHOUETTES[silhouette];
-    if (!make) throw new Error(`[level ${level.id}] unknown silhouette "${silhouette}"`);
-    const geo = junkify(make(), { seed, junk, size: OBJECT_SIZE, palette: this.palette });
+  private procedural(o: Extract<LevelObject, { kind: 'procedural' }>, palette: string[], id: string): LevelObjectInstance {
+    const make = SILHOUETTES[o.silhouette];
+    if (!make) throw new Error(`[level ${id}] unknown silhouette "${o.silhouette}"`);
+    const geo = junkify(make(), { seed: o.seed, junk: o.junk, size: OBJECT_SIZE, palette });
     return { root: prepare(new THREE.Mesh(geo, proceduralMat)), dispose: () => geo.dispose() };
   }
 

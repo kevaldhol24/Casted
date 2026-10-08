@@ -1,0 +1,32 @@
+{
+  "id": "w2-02",
+  "world": 2,
+  "targetName": "Ice cream",
+  "pieces": [
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/ice_scoop_junk.glb"
+      },
+      "offset": [0.0053, 0.3989, 0.8268],
+      "scale": 0.7704,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [80, -70, 0]
+    },
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/ice_cone_junk.glb"
+      },
+      "offset": [0, -0.5426, -0.8268],
+      "scale": 0.6646,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [-60, 100, 0]
+    }
+  ],
+  "threshold": 0.9,
+  "parTime": 40,
+  "allowMirror": false,
+  "reveal": "tilt",
+  "mask": "masks/w2-02.png"
+}
