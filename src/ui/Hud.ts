@@ -17,6 +17,13 @@ export class Hud {
   private timer = el('div', 'chip hud-timer');
   private toastEl = el('div', 'toast');
   private hand = el('div', 'hand', ICONS.hand);
+  /**
+   * Assembly levels: one Switch button (cycles the object being turned) with a dot per object under it. No
+   * shapes on it: a picture of each piece would give the answer away.
+   */
+  private switchWrap = el('div', 'piece-switch');
+  readonly switchBtn = el('button', 'switch-btn interactive', `${ICONS.swap}<span>Switch</span>`);
+  private dots = el('div', 'piece-dots');
   private toastTimer = 0;
 
   constructor(parent: HTMLElement) {
@@ -36,7 +43,12 @@ export class Hud {
     right.append(this.timer, this.hintBtn);
     this.setTimer(null);
     this.root.append(left, this.meter, right);
-    parent.append(this.root, this.toastEl, this.hand);
+    this.switchBtn.setAttribute('aria-label', 'Switch object');
+    // A drag that starts on the button must not spin the object.
+    this.switchBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+    this.switchWrap.append(this.switchBtn, this.dots);
+    this.switchWrap.style.display = 'none';
+    parent.append(this.root, this.switchWrap, this.toastEl, this.hand);
   }
 
   setLevel(text: string) {
@@ -83,6 +95,18 @@ export class Hud {
   }
   set visible(v: boolean) {
     this.root.classList.toggle('hidden', !v);
+    this.switchWrap.classList.toggle('hidden', !v);
+  }
+
+  /** Assembly: show the Switch button when at least two objects can be turned (dots: one per object, locked dim). */
+  setPieces(locked: boolean[]) {
+    this.dots.innerHTML = '';
+    for (const l of locked) this.dots.append(el('span', l ? 'dot locked' : 'dot'));
+    this.switchWrap.style.display = locked.filter((l) => !l).length >= 2 ? '' : 'none';
+  }
+
+  setActivePiece(i: number) {
+    [...this.dots.children].forEach((d, k) => d.classList.toggle('on', k === i));
   }
 
   toast(text: string, seconds = 1.6) {
@@ -98,3 +122,4 @@ export class Hud {
     if (direction) this.hand.classList.add('show', direction);
   }
 }
+

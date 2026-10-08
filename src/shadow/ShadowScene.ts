@@ -4,6 +4,8 @@ import { REVEALS, type RevealKind } from '../levels/levels';
 import { MASK_LAYER } from './MaskRenderer';
 
 export const WALL_Z = -2.6;
+/** Assembly: opacity of the pieces the player isn't turning. */
+const GHOST_OPACITY = 0.15;
 /** Where the object floats (before idle bob). */
 export const OBJECT_POS = new THREE.Vector3(0, -0.85, 1.2);
 /** Direction the light travels: from a lamp low and in front, up onto the wall, slightly offset to the right. */
@@ -16,6 +18,9 @@ export interface WorldPalette {
   light: string;
   accent: string;
   objects: string[];
+  /** Wall surface: Attic plaster or Kitchen tiles (both generated normal maps, no download). */
+  wallPattern: 'plaster' | 'tiles';
+  skirting: string;
 }
 
 /** World 1 — The Attic: dusty brown, warm tungsten, amber accent. */
@@ -26,7 +31,25 @@ export const ATTIC: WorldPalette = {
   light: '#ffd9a8',
   accent: '#f2a43a',
   objects: ['#b8a58c', '#a8917a', '#c9b79c', '#9c8a76'],
+  wallPattern: 'plaster',
+  skirting: '#6b4e38',
 };
+
+/** World 2 — The Kitchen: cream tiles, cool morning white, mint accent. */
+export const KITCHEN: WorldPalette = {
+  background: '#b7ad98',
+  wall: '#efe5d1',
+  floor: '#8f8574',
+  light: '#eef3ff',
+  accent: '#5fc9a4',
+  objects: ['#d7d2c6', '#b9c6c1', '#cdbb9f', '#a7b5ae'],
+  wallPattern: 'tiles',
+  skirting: '#a3998a',
+};
+
+/** Palette per world number; worlds without their own palette use the Attic's. */
+export const WORLD_PALETTES: Record<number, WorldPalette> = { 1: ATTIC, 2: KITCHEN };
+export const paletteFor = (world: number) => WORLD_PALETTES[world] ?? ATTIC;
 
 const outlineVert = /* glsl */ `
   varying vec2 vUv;
@@ -137,7 +160,11 @@ export class ShadowScene {
   readonly scene = new THREE.Scene();
   readonly light: THREE.DirectionalLight;
   readonly objectRoot = new THREE.Group();
-  private object: LevelObjectInstance | null = null;
+  /** The level's objects. A single object sits directly in objectRoot (it is the pivot); assembly pieces get their own. */
+  private pieces: { pivot: THREE.Object3D; obj: LevelObjectInstance; mats: THREE.MeshStandardMaterial[]; ghost: number; opacity: number }[] = [];
+  private palette: WorldPalette;
+  private skirtingMat: THREE.MeshStandardMaterial;
+  private wallMaps = new Map<WorldPalette['wallPattern'], THREE.DataTexture>();
   readonly outline: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>;
   private wallMat: THREE.MeshStandardMaterial;
   private floorMat: THREE.MeshStandardMaterial;
@@ -145,17 +172,16 @@ export class ShadowScene {
   private particles: Particles;
 
   constructor(palette: WorldPalette, shadowMapSize: number) {
+    this.palette = palette;
     const s = this.scene;
     s.background = new THREE.Color(palette.background);
     s.fog = new THREE.Fog(palette.background, 12, 26);
 
     // Plaster: a tiny tiling normal map (generated, no download) repeated across the wall.
-    const plaster = plasterNormalMap(128, 7);
-    plaster.repeat.set(12, 6.4);
     this.wallMat = new THREE.MeshStandardMaterial({
       color: palette.wall,
       roughness: 0.95,
-      normalMap: plaster,
+      normalMap: this.wallMap(palette.wallPattern),
       normalScale: new THREE.Vector2(0.55, 0.55),
     });
     const wall = new THREE.Mesh(new THREE.PlaneGeometry(30, 16), this.wallMat);
@@ -171,10 +197,8 @@ export class ShadowScene {
     s.add(floor);
 
     // Skirting board where floor meets wall, so the room reads as a diorama.
-    const skirting = new THREE.Mesh(
-      new THREE.BoxGeometry(30, 0.25, 0.12),
-      new THREE.MeshStandardMaterial({ color: '#6b4e38', roughness: 0.8 }),
-    );
+    this.skirtingMat = new THREE.MeshStandardMaterial({ color: palette.skirting, roughness: 0.8 });
+    const skirting = new THREE.Mesh(new THREE.BoxGeometry(30, 0.25, 0.12), this.skirtingMat);
     skirting.position.set(0, -2.48, WALL_Z + 0.06);
     s.add(skirting);
 
@@ -233,15 +257,107 @@ export class ShadowScene {
     s.add(this.particles.points);
   }
 
-  /** Swap in a level's object; the previous one is removed and disposed. Its meshes join the mask layer. */
-  setObject(obj: LevelObjectInstance) {
-    if (this.object) {
-      this.objectRoot.remove(this.object.root);
-      this.object.dispose();
+  private wallMap(pattern: WorldPalette['wallPattern']): THREE.DataTexture {
+    let t = this.wallMaps.get(pattern);
+    if (!t) {
+      t = pattern === 'tiles' ? tileNormalMap(128, 4) : plasterNormalMap(128, 7);
+      // Plaster tiles every 2.5 units; a tile texture holds 4×4 tiles of 0.6 units.
+      if (pattern === 'tiles') t.repeat.set(30 / 2.4, 16 / 2.4);
+      else t.repeat.set(12, 6.4);
+      this.wallMaps.set(pattern, t);
     }
-    this.object = obj;
-    obj.root.traverse((o) => o.layers.enable(MASK_LAYER));
-    this.objectRoot.add(obj.root);
+    return t;
+  }
+
+  /** Recolour the room for a world (wall, floor, light, accent). Cheap: materials and uniforms only. */
+  setWorld(p: WorldPalette) {
+    if (p === this.palette) return;
+    this.palette = p;
+    (this.scene.background as THREE.Color).set(p.background);
+    this.scene.fog?.color.set(p.background);
+    this.wallMat.color.set(p.wall);
+    this.wallMat.normalMap = this.wallMap(p.wallPattern);
+    this.wallMat.needsUpdate = true;
+    this.floorMat.color.set(p.floor);
+    this.skirtingMat.color.set(p.skirting);
+    this.light.color.set(p.light);
+    (this.outline.material.uniforms.uColor.value as THREE.Color).set(p.accent);
+    this.particles.setColor(p.accent);
+  }
+
+  get accent() {
+    return this.palette.accent;
+  }
+
+  /** Swap in a level's object; the previous objects are removed and disposed. */
+  setObject(obj: LevelObjectInstance) {
+    this.setPieces([obj]);
+  }
+
+  /**
+   * Swap in a level's objects and return their pivots (what gets rotated). One object goes straight into
+   * objectRoot, which is its pivot; several each get a pivot group under an unrotated objectRoot, with their own
+   * materials so the active one can glow. Every mesh joins the mask layer.
+   */
+  setPieces(objs: LevelObjectInstance[]): THREE.Object3D[] {
+    for (const p of this.pieces) {
+      this.objectRoot.remove(p.pivot === this.objectRoot ? p.obj.root : p.pivot);
+      p.obj.dispose();
+      for (const m of p.mats) m.dispose();
+    }
+    this.pieces = [];
+    this.objectRoot.quaternion.identity();
+    for (const obj of objs) {
+      obj.root.traverse((o) => o.layers.enable(MASK_LAYER));
+      const mats: THREE.MeshStandardMaterial[] = [];
+      if (objs.length === 1) {
+        this.objectRoot.add(obj.root);
+        this.pieces.push({ pivot: this.objectRoot, obj, mats, ghost: 1, opacity: 1 });
+        continue;
+      }
+      obj.root.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (mesh.isMesh && (mesh.material as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
+          const m = (mesh.material as THREE.MeshStandardMaterial).clone();
+          mesh.material = m;
+          mats.push(m);
+        }
+      });
+      const pivot = new THREE.Group();
+      pivot.add(obj.root);
+      this.objectRoot.add(pivot);
+      this.pieces.push({ pivot, obj, mats, ghost: 1, opacity: 1 });
+    }
+    return this.pieces.map((p) => p.pivot);
+  }
+
+  /**
+   * Assembly: tint piece `index` with the accent (the one the player is turning) and fade the others to a ghost,
+   * so the active one is always clear and the one behind shows through. Shadows and scoring are unaffected
+   * (the shadow map and the mask camera ignore opacity). -1 = all solid, no tint.
+   */
+  highlight(index: number, amount = 0.22) {
+    const c = new THREE.Color(this.palette.accent);
+    this.pieces.forEach((p, i) => {
+      for (const m of p.mats) m.emissive.copy(c).multiplyScalar(i === index ? amount : 0);
+      p.ghost = index < 0 || i === index ? 1 : GHOST_OPACITY;
+    });
+  }
+
+  /** Ease each piece's opacity towards its target; a piece is transparent only while it isn't fully solid. */
+  private updateGhosts(dt: number) {
+    for (const p of this.pieces) {
+      if (!p.mats.length || p.opacity === p.ghost) continue;
+      p.opacity += (p.ghost - p.opacity) * Math.min(1, dt * 10);
+      if (Math.abs(p.opacity - p.ghost) < 0.01) p.opacity = p.ghost;
+      const see = p.opacity < 1;
+      for (const m of p.mats) {
+        if (m.transparent !== see) m.needsUpdate = true;
+        m.transparent = see;
+        m.depthWrite = !see;
+        m.opacity = p.opacity;
+      }
+    }
   }
 
   /** The object's wall shadow; the reveal turns it off once the paint covers it, so the painted shape can move. */
@@ -337,6 +453,7 @@ export class ShadowScene {
     u.uTime.value = time;
     if (u.uAnimAmp.value > 0) u.uAnimT.value += dt;
     this.particles.update(dt);
+    this.updateGhosts(dt);
   }
 }
 
@@ -389,6 +506,41 @@ function plasterNormalMap(size: number, seed: number): THREE.DataTexture {
   return tex;
 }
 
+/** Kitchen tiles: a 4×4 grid of slightly domed tiles with recessed grout, tiling seamlessly. */
+function tileNormalMap(size: number, tiles: number): THREE.DataTexture {
+  const height = new Float32Array(size * size);
+  const cell = size / tiles;
+  const grout = 2;
+  for (let y = 0; y < size; y++)
+    for (let x = 0; x < size; x++) {
+      const dx = Math.min(x % cell, cell - 1 - (x % cell));
+      const dy = Math.min(y % cell, cell - 1 - (y % cell));
+      const edge = Math.min(dx, dy);
+      // Grout lines sit low; tile faces rise over a few pixels to a flat top.
+      height[y * size + x] = edge < grout ? 0 : Math.min(1, (edge - grout + 1) / 3);
+    }
+  const data = new Uint8Array(size * size * 4);
+  const h = (x: number, y: number) => height[((y + size) % size) * size + ((x + size) % size)];
+  const n = new THREE.Vector3();
+  for (let y = 0; y < size; y++)
+    for (let x = 0; x < size; x++) {
+      n.set((h(x - 1, y) - h(x + 1, y)) * 1.6, (h(x, y - 1) - h(x, y + 1)) * 1.6, 1).normalize();
+      const i = (y * size + x) * 4;
+      data[i] = (n.x * 0.5 + 0.5) * 255;
+      data[i + 1] = (n.y * 0.5 + 0.5) * 255;
+      data[i + 2] = (n.z * 0.5 + 0.5) * 255;
+      data[i + 3] = 255;
+    }
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.generateMipmaps = true;
+  tex.anisotropy = 4;
+  tex.needsUpdate = true;
+  return tex;
+}
+
 /** Reveal confetti: 36 small quads thrown off the wall, falling with gravity, fading out. */
 class Particles {
   readonly points: THREE.Points;
@@ -399,14 +551,8 @@ class Particles {
   constructor(color: string) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(this.count * 3), 3));
-    const cols = new Float32Array(this.count * 3);
-    const base = new THREE.Color(color);
-    const c = new THREE.Color();
-    for (let i = 0; i < this.count; i++) {
-      c.copy(base).offsetHSL((Math.random() - 0.5) * 0.15, 0, (Math.random() - 0.3) * 0.3);
-      cols.set([c.r, c.g, c.b], i * 3);
-    }
-    geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(this.count * 3), 3));
+    this.setColor(color, geo);
     this.vel = new Float32Array(this.count * 3);
     this.points = new THREE.Points(
       geo,
@@ -414,6 +560,18 @@ class Particles {
     );
     this.points.frustumCulled = false;
     this.points.visible = false;
+  }
+
+  /** Confetti in shades of the world's accent. */
+  setColor(color: string, geo = this.points.geometry) {
+    const cols = geo.getAttribute('color') as THREE.BufferAttribute;
+    const base = new THREE.Color(color);
+    const c = new THREE.Color();
+    for (let i = 0; i < this.count; i++) {
+      c.copy(base).offsetHSL((Math.random() - 0.5) * 0.15, 0, (Math.random() - 0.3) * 0.3);
+      cols.setXYZ(i, c.r, c.g, c.b);
+    }
+    cols.needsUpdate = true;
   }
 
   burst(at: THREE.Vector3) {

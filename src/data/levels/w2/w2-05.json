@@ -1,0 +1,32 @@
+{
+  "id": "w2-05",
+  "world": 2,
+  "targetName": "Rocket",
+  "pieces": [
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/rocket_body_junk.glb"
+      },
+      "offset": [0, 0.1582, 0.7237],
+      "scale": 0.9602,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [95, -110, 45]
+    },
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/rocket_flame_junk.glb"
+      },
+      "offset": [0, -0.8018, -0.7237],
+      "scale": 0.3496,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [80, 80, 0]
+    }
+  ],
+  "threshold": 0.9,
+  "parTime": 60,
+  "allowMirror": false,
+  "reveal": "pulse",
+  "mask": "masks/w2-05.png"
+}

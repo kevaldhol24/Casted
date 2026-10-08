@@ -1,5 +1,5 @@
 import { hashString, makeRng } from '../util/rng';
-import type { LevelDef } from './levels';
+import { isSingle, type SingleLevel } from './levels';
 import { WORLDS } from './worlds';
 
 /** Daily #1 is this UTC date; the number in the share text counts up from it. */
@@ -27,8 +27,8 @@ export function dailyNumber(date: string): number {
  * (never yesterday's), with all three axes free and a seeded start offset. Procedural objects also get a
  * fresh junk seed, so the clutter differs from the campaign level.
  */
-export function dailyLevel(date: string): LevelDef {
-  const pool = WORLDS[0].levels;
+export function dailyLevel(date: string): SingleLevel {
+  const pool = WORLDS[0].levels.filter(isSingle);
   const pick = (d: string) => hashString(`casted-daily-${d}`) % pool.length;
   let i = pick(date);
   const yesterday = utcDate(new Date(Date.parse(date) - DAY_MS));

@@ -257,7 +257,92 @@ function elephant(): Silhouette {
   ];
 }
 
+// --- World 2 (Kitchen) assembly targets: each split into the pieces the player turns separately, all drawn in
+// --- the target's own frame so the pieces line up when every one is solved.
+
+function mushroomCap(): Silhouette {
+  const s = new THREE.Shape();
+  s.moveTo(-1.0, 0.05);
+  s.bezierCurveTo(-1.0, 0.7, -0.5, 0.98, 0, 0.98);
+  s.bezierCurveTo(0.5, 0.98, 1.0, 0.7, 1.0, 0.05);
+  s.bezierCurveTo(0.55, -0.08, -0.55, -0.08, -1.0, 0.05);
+  s.holes.push(hole(-0.42, 0.48, 0.12), hole(0.28, 0.66, 0.1), hole(0.55, 0.3, 0.09));
+  return [s];
+}
+
+function mushroomStem(): Silhouette {
+  const s = new THREE.Shape();
+  s.moveTo(-0.26, 0.05);
+  s.lineTo(0.26, 0.05);
+  s.bezierCurveTo(0.3, -0.4, 0.42, -0.8, 0.4, -0.95);
+  s.lineTo(-0.4, -0.95);
+  s.bezierCurveTo(-0.42, -0.8, -0.3, -0.4, -0.26, 0.05);
+  return [s];
+}
+
+const iceScoop = (): Silhouette => [
+  circle(0, 0.38, 0.55),
+  circle(-0.4, -0.05, 0.2),
+  circle(0.02, -0.12, 0.22),
+  circle(0.42, -0.04, 0.19),
+  circle(0.14, 0.98, 0.11),
+];
+
+function iceCone(): Silhouette {
+  const s = poly([[-0.5, -0.02], [0.5, -0.02], [0, -1.0]]);
+  s.holes.push(rectHole(-0.06, -0.3, 0.06, -0.18), rectHole(-0.2, -0.16, -0.1, -0.06), rectHole(0.1, -0.16, 0.2, -0.06));
+  return [s];
+}
+
+const sails = (): Silhouette => [
+  poly([[-0.06, -0.3], [-0.06, 0.95], [-0.78, -0.3]]),
+  poly([[0.06, -0.3], [0.06, 0.78], [0.62, -0.3]]),
+  rect(-0.05, -0.42, 0.05, 1.02),
+  poly([[0.05, 1.02], [0.32, 0.94], [0.05, 0.86]]),
+];
+
+const hull = (): Silhouette => [poly([[-0.98, -0.38], [0.98, -0.38], [0.68, -0.78], [-0.7, -0.78]])];
+
+function balloon(): Silhouette {
+  const s = new THREE.Shape();
+  s.moveTo(0, -0.22);
+  s.bezierCurveTo(-0.25, -0.15, -0.72, 0.15, -0.72, 0.52);
+  s.bezierCurveTo(-0.72, 0.85, -0.4, 1.0, 0, 1.0);
+  s.bezierCurveTo(0.4, 1.0, 0.72, 0.85, 0.72, 0.52);
+  s.bezierCurveTo(0.72, 0.15, 0.25, -0.15, 0, -0.22);
+  return [s, rect(-0.16, -0.32, 0.16, -0.16)];
+}
+
+const basket = (): Silhouette => [
+  rect(-0.2, -0.98, 0.2, -0.68),
+  stroke(new THREE.LineCurve(new THREE.Vector2(-0.17, -0.7), new THREE.Vector2(-0.13, -0.26)), 0.06, 2),
+  stroke(new THREE.LineCurve(new THREE.Vector2(0.17, -0.7), new THREE.Vector2(0.13, -0.26)), 0.06, 2),
+];
+
+function rocketBody(): Silhouette {
+  const body = poly([[0, 1.0], [0.24, 0.62], [0.26, -0.45], [-0.26, -0.45], [-0.24, 0.62]]);
+  body.holes.push(hole(0, 0.25, 0.11));
+  return [
+    body,
+    poly([[0.25, -0.05], [0.58, -0.55], [0.58, -0.7], [0.25, -0.45]]),
+    poly([[-0.25, -0.05], [-0.25, -0.45], [-0.58, -0.7], [-0.58, -0.55]]),
+    rect(-0.16, -0.56, 0.16, -0.44),
+  ];
+}
+
+const rocketFlame = (): Silhouette => [poly([[-0.15, -0.52], [0.15, -0.52], [0.1, -0.72], [0, -1.0], [-0.1, -0.72]])];
+
 export const SILHOUETTES: Record<string, () => Silhouette> = {
+  mushroomCap,
+  mushroomStem,
+  iceScoop,
+  iceCone,
+  sails,
+  hull,
+  balloon,
+  basket,
+  rocketBody,
+  rocketFlame,
   heart,
   star,
   house,

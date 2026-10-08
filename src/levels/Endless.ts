@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { makeRng } from '../util/rng';
-import type { LevelDef } from './levels';
+import { isSingle, type SingleLevel } from './levels';
 import { makeInsideTest, silhouetteBounds, SILHOUETTES } from './shapes';
 import { WORLDS } from './worlds';
 
@@ -63,8 +63,8 @@ function convexHull(points: THREE.Vector2[]): THREE.Vector2[] {
 }
 
 /** World 1 objects Endless may use: not flagged out, and (procedural) whose silhouette isn't a blob. */
-function endlessPool(): LevelDef[] {
-  return WORLDS[0].levels.filter((l) => l.endless !== false && (l.object.kind === 'model' || hullFill(l.object.silhouette) <= MAX_HULL_FILL));
+function endlessPool(): SingleLevel[] {
+  return WORLDS[0].levels.filter(isSingle).filter((l) => l.endless !== false && (l.object.kind === 'model' || hullFill(l.object.silhouette) <= MAX_HULL_FILL));
 }
 
 /**
@@ -90,7 +90,7 @@ export class EndlessRun {
     return Math.max(BONUS_MIN_S, BONUS_START_S - this.solved);
   }
 
-  nextTarget(): LevelDef {
+  nextTarget(): SingleLevel {
     const r = this.rng;
     let base = this.pool[Math.floor(r() * this.pool.length)];
     if (base.id === this.lastId && this.pool.length > 1) base = this.pool[(this.pool.indexOf(base) + 1) % this.pool.length];

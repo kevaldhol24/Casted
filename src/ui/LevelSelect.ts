@@ -8,13 +8,14 @@ export interface LevelTileState {
   current: boolean;
 }
 
-/** World 1 level grid; locked tiles are disabled until the previous level is solved. */
+/** One world's level grid; locked tiles are disabled until the previous level is solved. */
 export class LevelSelect {
   private overlay = el('div', 'overlay center');
   private grid = el('div', 'level-grid');
   private sub = el('p', 'levels-sub');
   private title = el('h2', 'levels-title');
-  onPick = (_index: number) => {};
+  /** The picked level (tiles are numbered within their world, so pass the level, not the tile index). */
+  onPick = (_level: LevelDef) => {};
   onClose = () => {};
 
   constructor(parent: HTMLElement) {
@@ -55,7 +56,7 @@ export class LevelSelect {
       b.setAttribute('aria-label', `Level ${i + 1}${t.unlocked ? '' : ' (locked)'}`);
       b.addEventListener('click', () => {
         this.hide();
-        this.onPick(i);
+        this.onPick(t.level);
       });
       this.grid.append(b);
     });

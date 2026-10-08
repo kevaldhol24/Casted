@@ -24,7 +24,8 @@ export class Arcball {
   private q = new THREE.Quaternion();
   private axis = new THREE.Vector3();
 
-  constructor(private target: THREE.Object3D, private frame: THREE.Object3D) {}
+  /** @param target what rotates (assembly levels switch it to the active piece) */
+  constructor(public target: THREE.Object3D, private frame: THREE.Object3D) {}
 
   grab() {
     this.dragging = true;

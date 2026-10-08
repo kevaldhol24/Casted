@@ -7,7 +7,7 @@ import { HINTS_FROM_LEVEL, LEVELS, type LevelDef } from '../levels/levels';
 import { MODE_UNLOCKS, WORLDS, unlockText, type WorldDef } from '../levels/worlds';
 import type { Portal } from '../portal/Portal';
 import { MaskRenderer } from '../shadow/MaskRenderer';
-import { ATTIC, OBJECT_POS, ShadowScene } from '../shadow/ShadowScene';
+import { ATTIC, OBJECT_POS, ShadowScene, paletteFor } from '../shadow/ShadowScene';
 import { Album } from '../ui/Album';
 import { DebugView } from '../ui/DebugView';
 import { el, ICONS } from '../ui/dom';
@@ -80,6 +80,7 @@ export class Game {
   private firstTransition = true;
   private rewardedReadyAt = 0;
   private projected = new THREE.Vector3();
+  private scaleTmp = new THREE.Vector3();
 
   constructor(canvas: HTMLCanvasElement, ui: HTMLElement, private portal: Portal, private store: Store) {
     this.renderer = new Renderer(canvas);
@@ -148,10 +149,15 @@ export class Game {
     this.hud.pauseBtn.addEventListener('click', () => this.openPause());
     this.hud.muteBtn.addEventListener('click', () => this.toggleMute());
     this.hud.hintBtn.addEventListener('click', () => this.openHints());
+    this.hud.switchBtn.addEventListener('click', () => this.level.playing && this.level.cycle());
 
     this.menu.onPlay = () => this.openWorlds();
     this.menu.onMode = (key) => {
-      if (key === 'album') this.album.show(WORLDS[0].name, WORLDS[0].levels, (id) => this.store.isSolved(id), ATTIC.accent);
+      if (key === 'album')
+        this.album.show(
+          WORLDS.filter((w) => w.levels.length).map((w) => ({ name: w.name, levels: w.levels, color: paletteFor(w.id).accent })),
+          (id) => this.store.isSolved(id),
+        );
       else if (key === 'daily') this.openDaily();
       else if (key === 'endless') this.startEndless();
       else this.showMenu();
@@ -161,9 +167,9 @@ export class Game {
     this.album.onBack = () => this.showMenu();
     this.worlds.onPick = (id) => this.openLevels(WORLDS.find((w) => w.id === id)!, 'worlds');
     this.worlds.onBack = () => this.showMenu();
-    this.levelSelect.onPick = (i) => {
+    this.levelSelect.onPick = (level) => {
       this.inMenus = false;
-      this.play(i);
+      this.play(LEVELS.indexOf(level));
     };
     this.levelSelect.onClose = () => {
       if (this.levelSelectFrom === 'worlds') this.openWorlds();
@@ -176,7 +182,7 @@ export class Game {
       else if (this.mode === 'endless') this.startEndless();
       else this.play(this.index);
     };
-    this.pause.onLevels = () => this.openLevels(WORLDS[0], 'level');
+    this.pause.onLevels = () => this.openLevels(WORLDS.find((w) => w.id === this.level.level.world) ?? WORLDS[0], 'level');
     this.pause.onMenu = () => this.showMenu();
     this.pause.onSettings = (s) => {
       this.applySettings(s);
@@ -283,10 +289,12 @@ export class Game {
   private async load(level: LevelDef, suspended: boolean) {
     const token = ++this.loadToken;
     try {
-      const obj = await this.loader.load(level);
-      if (token !== this.loadToken) return obj.dispose();
+      const palette = paletteFor(level.world);
+      const objs = await this.loader.load(level, palette.objects);
+      if (token !== this.loadToken) return objs.forEach((o) => o.dispose());
+      this.scene.setWorld(palette);
       // The player may have opened the menu while a model was downloading.
-      this.level.start(level, obj, suspended || this.inMenus);
+      this.level.start(level, objs, suspended || this.inMenus);
       this.updateLabel();
       this.monitor.reset();
       if (this.mode === 'campaign') this.loader.preload(LEVELS[LEVELS.indexOf(level) + 1]);
@@ -634,6 +642,8 @@ export class Game {
         this.level.resume();
       } else this.openPause();
     } else if (code === 'KeyH') this.openHints();
+    else if (code === 'Tab') this.level.cycle();
+    else if (/^Digit[1-9]$/.test(code) && this.level.isAssembly && this.level.playing) this.level.select(Number(code.slice(5)) - 1);
   }
 
   private setHidden(h: boolean) {
@@ -644,15 +654,18 @@ export class Game {
     else if (!menuOpen) this.level.resume();
   }
 
-  /** Keep the on-object arrow centred on the object's screen position. */
+  /** Keep the on-object arrow centred on the active object's screen position. */
   private placeArrow() {
     const cam = this.renderer.camera;
-    const p = this.projected.copy(this.scene.objectRoot.position).project(cam);
+    const pivot = this.level.activePivot;
+    const at = pivot.getWorldPosition(this.projected);
+    const dist = cam.position.distanceTo(at);
+    const size = 2.6 * pivot.getWorldScale(this.scaleTmp).x;
+    const p = at.project(cam);
     const w = this.renderer.canvas.clientWidth;
     const h = this.renderer.canvas.clientHeight;
-    const dist = cam.position.distanceTo(this.scene.objectRoot.position);
     const pxPerUnit = h / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)) * dist);
-    this.arrow.place((p.x * 0.5 + 0.5) * w, (-p.y * 0.5 + 0.5) * h, pxPerUnit * 2.6);
+    this.arrow.place((p.x * 0.5 + 0.5) * w, (-p.y * 0.5 + 0.5) * h, pxPerUnit * size);
   }
 
   private frame() {

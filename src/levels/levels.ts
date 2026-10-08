@@ -11,21 +11,14 @@ export type LevelObject =
   /** An authored GLB (Draco allowed), path relative to the site root, e.g. "models/w1/bird.glb". */
   | { kind: 'model'; url: string };
 
-/** One level, as stored in src/data/levels/w<world>/<id>.json (written by tools/level-editor.html). */
-export interface LevelDef {
+type Quat = [number, number, number, number];
+type Vec3 = [number, number, number];
+
+/** Fields every level has, whatever it asks the player to turn. */
+interface LevelBase {
   id: string;
   world: number;
   targetName: string;
-  object: LevelObject;
-  /**
-   * Solution rotation as a quaternion [x, y, z, w] in light space (relative to the mask camera's frame).
-   * Omitted = identity: the object's local Z points at the light and local Y is light-space up (procedural objects).
-   */
-  solution?: [number, number, number, number];
-  /** Axes the player may rotate; others are locked. */
-  freeAxes: Axis[];
-  /** Start offset from the solution, as screen-space Euler degrees applied in x, y, z order. */
-  startOffset: [number, number, number];
   threshold: number;
   parTime: number;
   allowMirror: boolean;
@@ -34,6 +27,50 @@ export interface LevelDef {
   endless?: boolean;
   /** Target mask PNG (relative to the site root) — the Album draws it for model levels. */
   mask?: string;
+}
+
+/** One level, as stored in src/data/levels/w<world>/<id>.json (written by tools/level-editor.html). */
+export interface SingleLevel extends LevelBase {
+  object: LevelObject;
+  /**
+   * Solution rotation as a quaternion [x, y, z, w] in light space (relative to the mask camera's frame).
+   * Omitted = identity: the object's local Z points at the light and local Y is light-space up (procedural objects).
+   */
+  solution?: Quat;
+  /** Axes the player may rotate; others are locked. */
+  freeAxes: Axis[];
+  /** Start offset from the solution, as screen-space Euler degrees applied in x, y, z order. */
+  startOffset: Vec3;
+}
+
+/** One object of an assembly level (World 2+): turned on its own; all pieces' shadows together make the target. */
+export interface LevelPiece {
+  object: LevelObject;
+  /** Where the piece's centre sits, in light space (x right, y up on the wall, z towards the light), world units. */
+  offset: Vec3;
+  /** Size after the model's normalisation (procedural objects: after OBJECT_SIZE). */
+  scale: number;
+  solution?: Quat;
+  freeAxes: Axis[];
+  startOffset: Vec3;
+  /** Starts solved and can't be turned (the design doc's first assembly level: one object pre-solved). */
+  locked?: boolean;
+}
+
+/** Assembly level (design doc World 2): 2–3 objects rotated separately; tap / Tab switches the active one. */
+export interface AssemblyLevel extends LevelBase {
+  pieces: LevelPiece[];
+}
+
+export type LevelDef = SingleLevel | AssemblyLevel;
+
+export const isAssembly = (l: LevelDef): l is AssemblyLevel => 'pieces' in l;
+export const isSingle = (l: LevelDef): l is SingleLevel => !('pieces' in l);
+
+/** A level's pieces; a single-object level is one piece at the centre, unscaled. */
+export function levelPieces(l: LevelDef): LevelPiece[] {
+  if (isAssembly(l)) return l.pieces;
+  return [{ object: l.object, offset: [0, 0, 0], scale: 1, solution: l.solution, freeAxes: l.freeAxes, startOffset: l.startOffset }];
 }
 
 const files = import.meta.glob<LevelDef>('../data/levels/*/*.json', { eager: true, import: 'default' });

@@ -1,0 +1,33 @@
+{
+  "id": "w2-01",
+  "world": 2,
+  "targetName": "Mushroom",
+  "pieces": [
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/mushroom_cap_junk.glb"
+      },
+      "offset": [0, 0.4196, 0.6895],
+      "scale": 0.7592,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [70, -95, 0]
+    },
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/mushroom_stem_junk.glb"
+      },
+      "offset": [0, -0.4049, -0.6895],
+      "scale": 0.4525,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [0, 0, 0],
+      "locked": true
+    }
+  ],
+  "threshold": 0.9,
+  "parTime": 25,
+  "allowMirror": false,
+  "reveal": "pulse",
+  "mask": "masks/w2-01.png"
+}

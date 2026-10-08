@@ -1,9 +1,10 @@
-import type { LevelDef } from '../levels/levels';
+import { isSingle, type LevelDef } from '../levels/levels';
 import { SILHOUETTES, silhouetteBounds } from '../levels/shapes';
 import { el } from './dom';
 
 /**
- * Shadow Album: every solved silhouette per world, drawn in 2D from the same shapes the levels use.
+ * Shadow Album: every solved silhouette, a section per world (procedural levels drawn from shapes.ts, model
+ * levels from their mask PNG).
  * Unsolved entries show a "?" card. Completion % per world.
  */
 export class Album {
@@ -31,20 +32,25 @@ export class Album {
     return this.overlay.classList.contains('show');
   }
 
-  show(worldName: string, levels: LevelDef[], solved: (id: string) => boolean, color: string) {
-    const done = levels.filter((l) => solved(l.id)).length;
-    this.sub.textContent = `${worldName} · ${Math.round((done / levels.length) * 100)}% complete`;
+  /** One section per world (its silhouettes tinted with that world's accent). */
+  show(worlds: { name: string; levels: LevelDef[]; color: string }[], solved: (id: string) => boolean) {
+    const all = worlds.flatMap((w) => w.levels);
+    const done = all.filter((l) => solved(l.id)).length;
+    this.sub.textContent = `${done} / ${all.length} shadows · ${Math.round((done / Math.max(1, all.length)) * 100)}% complete`;
     this.grid.innerHTML = '';
-    for (const l of levels) {
-      const cell = el('div', 'album-cell');
-      if (solved(l.id)) {
-        cell.append(l.object.kind === 'procedural' ? drawSilhouette(l.object.silhouette, 96, color) : maskImage(l, 96, color));
-        cell.append(el('span', 'album-name', l.targetName));
-      } else {
-        cell.classList.add('unknown');
-        cell.append(el('span', 'album-q', '?'));
+    for (const w of worlds) {
+      if (worlds.length > 1) this.grid.append(el('h3', 'album-world', w.name));
+      for (const l of w.levels) {
+        const cell = el('div', 'album-cell');
+        if (solved(l.id)) {
+          cell.append(isSingle(l) && l.object.kind === 'procedural' ? drawSilhouette(l.object.silhouette, 96, w.color) : maskImage(l, 96, w.color));
+          cell.append(el('span', 'album-name', l.targetName));
+        } else {
+          cell.classList.add('unknown');
+          cell.append(el('span', 'album-q', '?'));
+        }
+        this.grid.append(cell);
       }
-      this.grid.append(cell);
     }
     this.overlay.classList.add('show');
   }
