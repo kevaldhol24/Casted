@@ -25,6 +25,11 @@ Update the progress tracker doc through the Claude Docs connector:
 
 Make targeted edits (don't rewrite the whole doc); read the doc's latest state first, the user may edit it too.
 
+## Repository
+
+GitHub: https://github.com/kevaldhol24/Casted (branch `main`). Commit/push only when the user asks.
+Never add Claude/AI attribution (no `Co-Authored-By`, no "Generated with Claude Code") to commits, PRs or files.
+
 ## Commands
 
 - `npm install` — install deps
