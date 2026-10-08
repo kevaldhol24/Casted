@@ -1,0 +1,17 @@
+{
+  "id": "w1-11",
+  "world": 1,
+  "targetName": "Key",
+  "object": {
+    "kind": "procedural",
+    "silhouette": "key",
+    "seed": 1111,
+    "junk": 1.6
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [-100, -80, 45],
+  "threshold": 0.9,
+  "parTime": 50,
+  "allowMirror": false,
+  "reveal": "swing"
+}

@@ -1,0 +1,17 @@
+{
+  "id": "w1-09",
+  "world": 1,
+  "targetName": "Bicycle",
+  "object": {
+    "kind": "procedural",
+    "silhouette": "bicycle",
+    "seed": 909,
+    "junk": 1.4
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [-70, 120, 35],
+  "threshold": 0.9,
+  "parTime": 60,
+  "allowMirror": false,
+  "reveal": "roll"
+}

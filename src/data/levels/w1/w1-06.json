@@ -1,0 +1,17 @@
+{
+  "id": "w1-06",
+  "world": 1,
+  "targetName": "Teapot",
+  "object": {
+    "kind": "procedural",
+    "silhouette": "teapot",
+    "seed": 606,
+    "junk": 1.4
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [-80, 100, -30],
+  "threshold": 0.9,
+  "parTime": 40,
+  "allowMirror": false,
+  "reveal": "tilt"
+}

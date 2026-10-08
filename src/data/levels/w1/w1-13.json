@@ -1,0 +1,17 @@
+{
+  "id": "w1-13",
+  "world": 1,
+  "targetName": "Guitar",
+  "object": {
+    "kind": "procedural",
+    "silhouette": "guitar",
+    "seed": 1313,
+    "junk": 1.8
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [-120, 75, 80],
+  "threshold": 0.91,
+  "parTime": 75,
+  "allowMirror": false,
+  "reveal": "strum"
+}

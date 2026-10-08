@@ -1,0 +1,17 @@
+{
+  "id": "w1-02",
+  "world": 1,
+  "targetName": "Star",
+  "object": {
+    "kind": "procedural",
+    "silhouette": "star",
+    "seed": 202,
+    "junk": 0.9
+  },
+  "freeAxes": ["y"],
+  "startOffset": [0, -95, 0],
+  "threshold": 0.9,
+  "parTime": 15,
+  "allowMirror": true,
+  "reveal": "spin"
+}

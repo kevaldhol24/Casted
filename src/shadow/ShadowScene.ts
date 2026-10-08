@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import type { LevelObjectInstance } from '../levels/LevelLoader';
+import { REVEALS, type RevealKind } from '../levels/levels';
 import { MASK_LAYER } from './MaskRenderer';
 
 export const WALL_Z = -2.6;
@@ -45,10 +47,79 @@ const outlineFrag = /* glsl */ `
   uniform float uFill;
   uniform float uTime;
   uniform float uOpacity;
+  uniform int uAnim;
+  uniform float uAnimT;
+  uniform float uAnimAmp;
+  uniform vec4 uBox; // target bounds in mask UV: min.xy, max.xy
   varying vec2 vUv;
   varying vec3 vWorld;
+
+  vec2 rot(vec2 p, vec2 pivot, float a) {
+    float c = cos(a), s = sin(a);
+    p -= pivot;
+    return pivot + vec2(c * p.x - s * p.y, s * p.x + c * p.y);
+  }
+
+  // Reveal animation as an inverse warp: for each wall pixel, where in the still mask to sample.
+  // Moving the shape by +d means sampling at uv - d; rotating by a means sampling rotated by -a.
+  vec2 warp(vec2 uv) {
+    if (uAnim == 0 || uAnimAmp <= 0.0) return uv;
+    float t = uAnimT;
+    float k = uAnimAmp;
+    vec2 lo = uBox.xy, hi = uBox.zw;
+    vec2 size = hi - lo;
+    vec2 c = (lo + hi) * 0.5;
+    vec2 bottom = vec2(c.x, lo.y);
+    vec2 top = vec2(c.x, hi.y);
+    if (uAnim == 1) { // pulse: two quick beats, then a rest
+      float ph = mod(t, 1.1);
+      float beat = exp(-pow((ph - 0.12) * 16.0, 2.0)) + 0.7 * exp(-pow((ph - 0.36) * 16.0, 2.0));
+      return c + (uv - c) / (1.0 + 0.09 * k * beat);
+    }
+    if (uAnim == 2) { // spin: one full turn, then a twinkle wobble
+      float a = 6.2831853 * smoothstep(0.0, 1.3, t) + 0.12 * sin(t * 5.0) * smoothstep(1.2, 1.8, t);
+      return rot(uv, c, -a * k);
+    }
+    if (uAnim == 3) { // hop: up in an arc, squash on landing
+      float ph = fract(t * 0.8);
+      float h = 4.0 * ph * (1.0 - ph);
+      float squash = exp(-pow((ph - 0.02) * 14.0, 2.0)) + exp(-pow((ph - 0.98) * 14.0, 2.0));
+      vec2 p = uv - vec2(0.0, min(h * 0.16 * size.y, 0.99 - hi.y) * k); // never above the mask quad
+      vec2 sc = vec2(1.0 + 0.1 * squash * k, 1.0 - 0.12 * squash * k);
+      return bottom + (p - bottom) / sc;
+    }
+    if (uAnim == 4) { // swim: travelling body wave, drifting forward and back
+      float x = (uv.x - lo.x) / max(size.x, 1e-3);
+      vec2 p = uv - vec2(0.06 * size.x * sin(t * 1.3) * k, 0.0);
+      p.y -= 0.07 * size.y * k * sin(x * 9.0 - t * 8.0) * (0.3 + 0.7 * (1.0 - x));
+      return p;
+    }
+    if (uAnim == 5) { // flap: outer parts bend up and down, body bobs
+      float dx = (uv.x - c.x) / max(size.x * 0.5, 1e-3);
+      float flap = sin(t * 9.0);
+      return uv + vec2(0.0, (0.22 * dx * dx * flap - 0.05 * sin(t * 4.5)) * size.y * k);
+    }
+    if (uAnim == 6) return rot(uv, bottom, -0.2 * k * sin(t * 3.2));           // rock on the base
+    if (uAnim == 7) return rot(uv, vec2(lo.x, lo.y), -0.16 * k * (0.5 - 0.5 * cos(t * 2.6))); // tilt forward (pour)
+    if (uAnim == 8) return rot(uv, bottom, -0.1 * k * sin(t * 2.4));           // sway
+    if (uAnim == 9) return rot(uv, top, -0.22 * k * sin(t * 2.8));             // swing from the top
+    if (uAnim == 10) {                                                          // roll back and forth
+      return uv - vec2(0.12 * size.x * k * sin(t * 2.2), 0.0);
+    }
+    if (uAnim == 11) {                                                          // stomp: squash and stretch
+      float s = sin(t * 5.0);
+      vec2 sc = vec2(1.0 - 0.05 * s * k, 1.0 + 0.07 * s * k);
+      return bottom + (uv - bottom) / sc;
+    }
+    if (uAnim == 12) {                                                          // strum: a quick shiver
+      float e = exp(-mod(t, 1.4) * 4.0);
+      return rot(uv, c, -0.07 * k * e * sin(t * 40.0));
+    }
+    return uv;
+  }
+
   void main() {
-    float m = texture2D(uMask, vUv).r;
+    float m = texture2D(uMask, warp(vUv)).r;
     float w = fwidth(m) * 1.5 + 0.02;
     float edge = 1.0 - smoothstep(0.0, w + 0.06, abs(m - 0.5));
     float dash = step(0.0, sin((vWorld.x * 0.8 + vWorld.y) * 26.0 - uTime * 1.5));
@@ -66,11 +137,10 @@ export class ShadowScene {
   readonly scene = new THREE.Scene();
   readonly light: THREE.DirectionalLight;
   readonly objectRoot = new THREE.Group();
-  readonly objectMesh: THREE.Mesh;
+  private object: LevelObjectInstance | null = null;
   readonly outline: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>;
   private wallMat: THREE.MeshStandardMaterial;
   private floorMat: THREE.MeshStandardMaterial;
-  private objectMat: THREE.MeshStandardMaterial;
   private hemi: THREE.HemisphereLight;
   private particles: Particles;
 
@@ -79,7 +149,15 @@ export class ShadowScene {
     s.background = new THREE.Color(palette.background);
     s.fog = new THREE.Fog(palette.background, 12, 26);
 
-    this.wallMat = new THREE.MeshStandardMaterial({ color: palette.wall, roughness: 0.95 });
+    // Plaster: a tiny tiling normal map (generated, no download) repeated across the wall.
+    const plaster = plasterNormalMap(128, 7);
+    plaster.repeat.set(12, 6.4);
+    this.wallMat = new THREE.MeshStandardMaterial({
+      color: palette.wall,
+      roughness: 0.95,
+      normalMap: plaster,
+      normalScale: new THREE.Vector2(0.55, 0.55),
+    });
     const wall = new THREE.Mesh(new THREE.PlaneGeometry(30, 16), this.wallMat);
     wall.position.set(0, 3, WALL_Z);
     wall.receiveShadow = true;
@@ -124,13 +202,7 @@ export class ShadowScene {
     this.light.shadow.radius = 3;
     s.add(this.light, this.light.target);
 
-    this.objectMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, flatShading: true });
-    this.objectMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.objectMat);
-    this.objectMesh.castShadow = true;
-    this.objectMesh.receiveShadow = true;
-    this.objectMesh.layers.enable(MASK_LAYER);
     this.objectRoot.position.copy(OBJECT_POS);
-    this.objectRoot.add(this.objectMesh);
     s.add(this.objectRoot);
 
     this.outline = new THREE.Mesh(
@@ -147,6 +219,10 @@ export class ShadowScene {
           uFill: { value: 0 },
           uTime: { value: 0 },
           uOpacity: { value: 1 },
+          uAnim: { value: 0 },
+          uAnimT: { value: 0 },
+          uAnimAmp: { value: 0 },
+          uBox: { value: new THREE.Vector4(0, 0, 1, 1) },
         },
       }),
     );
@@ -157,9 +233,22 @@ export class ShadowScene {
     s.add(this.particles.points);
   }
 
-  setObjectGeometry(geo: THREE.BufferGeometry) {
-    this.objectMesh.geometry.dispose();
-    this.objectMesh.geometry = geo;
+  /** Swap in a level's object; the previous one is removed and disposed. Its meshes join the mask layer. */
+  setObject(obj: LevelObjectInstance) {
+    if (this.object) {
+      this.objectRoot.remove(this.object.root);
+      this.object.dispose();
+    }
+    this.object = obj;
+    obj.root.traverse((o) => o.layers.enable(MASK_LAYER));
+    this.objectRoot.add(obj.root);
+  }
+
+  /** The object's wall shadow; the reveal turns it off once the paint covers it, so the painted shape can move. */
+  set objectShadow(on: boolean) {
+    this.objectRoot.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh) o.castShadow = on;
+    });
   }
 
   /**
@@ -208,6 +297,22 @@ export class ShadowScene {
   set outlineOpacity(v: number) {
     this.outline.material.uniforms.uOpacity.value = v;
   }
+
+  /**
+   * Prepare the painted shadow's reveal animation. `box` is the target's bounds in mask UV (min x, min y,
+   * max x, max y); the animation pivots and scales relative to it. Strength starts at 0.
+   */
+  setReveal(kind: RevealKind | undefined, box: THREE.Vector4) {
+    const u = this.outline.material.uniforms;
+    u.uAnim.value = Math.max(0, REVEALS.indexOf(kind ?? 'none'));
+    u.uAnimT.value = 0;
+    u.uAnimAmp.value = 0;
+    (u.uBox.value as THREE.Vector4).copy(box);
+  }
+  /** Reveal animation strength (0 = still shape, 1 = full motion); its clock runs while above 0. */
+  set revealAmount(v: number) {
+    this.outline.material.uniforms.uAnimAmp.value = v;
+  }
   /** Scale applied to every softness value (low tier halves the blur). */
   private softnessScale = 1;
   set shadowSoftness(r: number) {
@@ -228,9 +333,60 @@ export class ShadowScene {
   }
 
   update(dt: number, time: number) {
-    this.outline.material.uniforms.uTime.value = time;
+    const u = this.outline.material.uniforms;
+    u.uTime.value = time;
+    if (u.uAnimAmp.value > 0) u.uAnimT.value += dt;
     this.particles.update(dt);
   }
+}
+
+/**
+ * Tileable plaster bumps: a few octaves of periodic value noise turned into a tangent-space normal map.
+ * Built once on the CPU (128² is ~16k texels), so the wall texture costs no download.
+ */
+function plasterNormalMap(size: number, seed: number): THREE.DataTexture {
+  let st = seed >>> 0;
+  const rnd = () => ((st = (st * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const height = new Float32Array(size * size);
+  for (const [cells, amp] of [[8, 1], [16, 0.5], [32, 0.3], [64, 0.18]] as const) {
+    const lattice = Array.from({ length: cells * cells }, rnd);
+    const at = (x: number, y: number) => lattice[((y + cells) % cells) * cells + ((x + cells) % cells)];
+    for (let y = 0; y < size; y++)
+      for (let x = 0; x < size; x++) {
+        const fx = (x / size) * cells;
+        const fy = (y / size) * cells;
+        const x0 = Math.floor(fx);
+        const y0 = Math.floor(fy);
+        const tx = fx - x0;
+        const ty = fy - y0;
+        const sx = tx * tx * (3 - 2 * tx);
+        const sy = ty * ty * (3 - 2 * ty);
+        const top = at(x0, y0) + (at(x0 + 1, y0) - at(x0, y0)) * sx;
+        const bot = at(x0, y0 + 1) + (at(x0 + 1, y0 + 1) - at(x0, y0 + 1)) * sx;
+        height[y * size + x] += (top + (bot - top) * sy) * amp;
+      }
+  }
+  const data = new Uint8Array(size * size * 4);
+  const h = (x: number, y: number) => height[((y + size) % size) * size + ((x + size) % size)];
+  const strength = 2.2;
+  const n = new THREE.Vector3();
+  for (let y = 0; y < size; y++)
+    for (let x = 0; x < size; x++) {
+      n.set((h(x - 1, y) - h(x + 1, y)) * strength, (h(x, y - 1) - h(x, y + 1)) * strength, 1).normalize();
+      const i = (y * size + x) * 4;
+      data[i] = (n.x * 0.5 + 0.5) * 255;
+      data[i + 1] = (n.y * 0.5 + 0.5) * 255;
+      data[i + 2] = (n.z * 0.5 + 0.5) * 255;
+      data[i + 3] = 255;
+    }
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.generateMipmaps = true;
+  tex.anisotropy = 4;
+  tex.needsUpdate = true;
+  return tex;
 }
 
 /** Reveal confetti: 36 small quads thrown off the wall, falling with gravity, fading out. */

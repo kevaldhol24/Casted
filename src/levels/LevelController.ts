@@ -7,14 +7,13 @@ import type { HintTier } from '../core/Store';
 import type { Portal } from '../portal/Portal';
 import { MaskRenderer } from '../shadow/MaskRenderer';
 import { TargetMask, blurToBytes, meterFromIou, rgbaToMask } from '../shadow/Matcher';
-import { LIGHT_DIR, OBJECT_POS, type ShadowScene, type WorldPalette } from '../shadow/ShadowScene';
+import { LIGHT_DIR, OBJECT_POS, type ShadowScene } from '../shadow/ShadowScene';
 import type { DebugView } from '../ui/DebugView';
 import type { Hud } from '../ui/Hud';
 import type { ArrowKind, ObjectArrow } from '../ui/ObjectArrow';
 import { easeInOutCubic, easeOutBack, easeOutCubic, type Tweens } from '../util/tween';
-import { junkify } from './junkify';
+import type { LevelObjectInstance } from './LevelLoader';
 import type { Axis, LevelDef } from './levels';
-import { SILHOUETTES } from './shapes';
 
 export type LevelState = 'idle' | 'intro' | 'playing' | 'hinting' | 'snapping' | 'reveal' | 'done';
 
@@ -23,7 +22,6 @@ const DISPLAY_MASK_SIZE = 512;
 const SNAP_HOLD_S = 0.3;
 const SNAP_TWEEN_S = 0.4;
 const DRAG_SCORE_INTERVAL_S = 1 / 15;
-const OBJECT_SIZE = 1.9;
 const MAX_START_IOU = 0.5;
 /** Hint button pulses once after this long with the meter never above 50%. */
 const HINT_PULSE_S = 45;
@@ -51,8 +49,22 @@ interface Ctx {
   audio: GameAudio;
   tweens: Tweens;
   portal: Portal;
-  palette: WorldPalette;
   debug: DebugView | null;
+}
+
+/** Bounds of the filled pixels as UV (0–1) min x, min y, max x, max y. */
+function maskBounds(mask: Uint8Array, size: number): THREE.Vector4 {
+  let x0 = size, y0 = size, x1 = -1, y1 = -1;
+  for (let y = 0; y < size; y++)
+    for (let x = 0; x < size; x++)
+      if (mask[y * size + x]) {
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+  if (x1 < 0) return new THREE.Vector4(0, 0, 1, 1);
+  return new THREE.Vector4(x0 / size, y0 / size, (x1 + 1) / size, (y1 + 1) / size);
 }
 
 /**
@@ -97,7 +109,7 @@ export class LevelController {
     return this.state === 'playing';
   }
 
-  start(level: LevelDef, suspended = false) {
+  start(level: LevelDef, object: LevelObjectInstance, suspended = false) {
     const { scene, mask, arcball, hud, tweens, arrow } = this.c;
     tweens.clear();
     this.generation++;
@@ -116,20 +128,15 @@ export class LevelController {
     this.c.renderer.push = 0;
     arrow.hide();
 
-    const geo = junkify(SILHOUETTES[level.silhouette](), {
-      seed: level.seed,
-      junk: level.junk,
-      size: OBJECT_SIZE,
-      palette: this.c.palette.objects,
-    });
-    scene.setObjectGeometry(geo);
+    scene.setObject(object);
     const obj = scene.objectRoot;
     obj.position.copy(OBJECT_POS);
     obj.scale.setScalar(1);
     mask.aim(OBJECT_POS, LIGHT_DIR);
 
-    // The solution: object's local Z points back at the light, local Y is light-space up.
+    // The solution is stored in light space: identity = local Z points back at the light, local Y is light-space up.
     const solution = mask.camera.quaternion.clone();
+    if (level.solution) solution.multiply(new THREE.Quaternion().fromArray(level.solution).normalize());
     obj.quaternion.copy(solution);
     obj.updateMatrixWorld(true);
 
@@ -142,6 +149,8 @@ export class LevelController {
     this.displayTex.minFilter = THREE.LinearFilter;
     this.displayTex.needsUpdate = true;
     scene.placeOutline(mask.camera, mask.halfSize, this.displayTex);
+    scene.setReveal(level.reveal, maskBounds(big, DISPLAY_MASK_SIZE));
+    scene.objectShadow = true;
 
     this.solutions = this.findSolutions(solution);
     this.placeStart(solution);
@@ -155,7 +164,8 @@ export class LevelController {
     this.meter = meterFromIou(this.iou, level.threshold, this.meterFloor);
     hud.setMeter(this.meter);
     hud.setLevel(`${level.world}-${level.id.slice(-2).replace(/^0/, '')}`);
-    hud.visible = true;
+    // Loaded behind the menu (suspended): the HUD appears when the level is actually played.
+    hud.visible = !suspended;
     hud.hintVisible = this.hintsEnabled;
 
     arcball.freeAxes = level.freeAxes;
@@ -468,7 +478,12 @@ export class LevelController {
       await tweens.to(0.7, (k) => (renderer.push = 0.45 * (1 - k)), easeInOutCubic);
     } else await tweens.to(0.85, () => {});
     renderer.push = 0;
-    await tweens.to(0.5, () => {});
+    // The paint now covers the real shadow: hide that and let the painted shape come alive (rabbit hops, fish swims).
+    if (!this.reduceMotion && this.level.reveal && this.level.reveal !== 'none') {
+      scene.objectShadow = false;
+      tweens.to(0.4, (k) => (scene.revealAmount = k), easeOutCubic);
+      await tweens.to(1.1, () => {});
+    } else await tweens.to(0.5, () => {});
     audio.duck(false);
 
     const stars = this.hintsUsed > 0 ? 1 : this.time <= this.level.parTime ? 3 : 2;

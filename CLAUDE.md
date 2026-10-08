@@ -37,6 +37,10 @@ Never add Claude/AI attribution (no `Co-Authored-By`, no "Generated with Claude 
 - `npm run build` — type-check + production build into `dist/` (relative paths, works from any subfolder)
 - `npm run preview` — serve the built `dist/`
 
+Level editor (dev only, never built): `npm run dev`, then open http://localhost:5173/tools/level-editor.html.
+Load a GLB (Draco OK) or an existing level, rotate to the solution, "Set solution here", fill the form, "Save to project"
+(writes `src/data/levels/w<world>/<id>.json`, `public/masks/<id>.png`, `public/models/w<world>/<name>.glb`).
+
 Dev URL params: `?level=N` jumps to level N (1-based), `?debug=1` shows the live mask + IoU overlay.
 
 Automated checks: in dev builds `window.__casted` is the `Game` instance (`__casted.level` is the
@@ -51,8 +55,12 @@ snap → reveal → done flow, and drag with `page.mouse` to verify input. Swift
   (screen-space rotation, inertia, axis locks), `Store` (versioned localStorage save)
 - `src/shadow/` — `ShadowScene` (wall, floor, light, object root, target outline/fill shader),
   `MaskRenderer` (light-space orthographic mask render to 128×128), `Matcher` (IoU)
-- `src/levels/` — `levels.ts` (level data), `shapes.ts` (2D silhouettes), `junkify.ts` (procedural junk objects),
+- `src/data/levels/w<N>/*.json` — one JSON per level (schema: `LevelDef` in `src/levels/levels.ts`)
+- `src/levels/` — `levels.ts` (schema + loads the JSON), `LevelLoader.ts` (procedural objects + GLB/Draco, lazy-loaded),
+  `shapes.ts` (2D silhouettes), `junkify.ts` (procedural junk objects),
   `LevelController.ts` (state machine: intro → playing → snapping → reveal → win)
+- `src/tools/LevelEditor.ts` + `tools/level-editor.html` — dev-only level editor; its save endpoint is a dev-server
+  plugin in `vite.config.ts`
 - `src/ui/` — HTML/CSS overlay (HUD, win screen, toasts)
 - `src/portal/` — `Portal` interface + `LocalPortal` (Poki/CrazyGames adapters come in Phase 3)
 - `src/util/` — tweens, seeded RNG
@@ -61,5 +69,7 @@ snap → reveal → done flow, and drag with `page.mouse` to verify input. Swift
 
 - No frameworks for UI: vanilla TS + CSS over the canvas.
 - Target masks are rendered at level load from the solution rotation with the same mask code path, so a perfect
-  solve always scores 1.0.
+  solve always scores 1.0. (The editor's PNG masks are only used by the Album.)
+- Level `solution` quaternions are stored in light space (relative to the mask camera); omitted = identity.
+  GLB models are normalised to a bounding-sphere radius of 1.3 by `normalizeModel`, in both the editor and the game.
 - Keep Vite `base: './'` (portals require relative paths).

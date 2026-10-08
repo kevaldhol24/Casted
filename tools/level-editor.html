@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Casted — Level Editor</title>
+    <style>
+      :root { --bg: #1d1510; --panel: #2b2019; --edge: #4a3829; --ink: #fff6e8; --dim: #c9b79c; --accent: #f2a43a; --bad: #ff7a6b; --good: #8fd694; }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 13px/1.4 system-ui, sans-serif; }
+      body { display: flex; }
+      #view { flex: 1; position: relative; min-width: 0; }
+      #game { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+      #game:active { cursor: grabbing; }
+      #drop { position: absolute; inset: 12px; border: 3px dashed var(--accent); border-radius: 16px; display: none; place-items: center; font-size: 20px; background: rgba(0,0,0,.4); pointer-events: none; }
+      #drop.show { display: grid; }
+      #hint { position: absolute; left: 12px; bottom: 12px; color: var(--dim); background: rgba(0,0,0,.35); padding: 6px 10px; border-radius: 8px; }
+      aside { width: 340px; overflow-y: auto; background: var(--panel); border-left: 1px solid var(--edge); padding: 14px; }
+      h1 { font-size: 16px; margin: 0 0 4px; }
+      h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin: 18px 0 8px; }
+      label { display: block; margin: 6px 0; color: var(--dim); }
+      label > input, label > select { display: block; width: 100%; margin-top: 2px; }
+      input, select, button { font: inherit; color: var(--ink); background: #1d1510; border: 1px solid var(--edge); border-radius: 6px; padding: 5px 7px; }
+      input[type=checkbox] { width: auto; display: inline; margin-right: 4px; }
+      button { cursor: pointer; background: #3a2b21; }
+      button:hover { border-color: var(--accent); }
+      button.primary { background: var(--accent); color: #2b1a08; font-weight: 700; border-color: var(--accent); }
+      .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+      .row > * { flex: 1; }
+      .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+      .nudge { display: grid; grid-template-columns: 26px repeat(6, 1fr); gap: 3px; align-items: center; margin: 3px 0; }
+      .nudge button { padding: 3px 0; font-size: 11px; }
+      .masks { display: flex; gap: 10px; }
+      .masks figure { margin: 0; text-align: center; color: var(--dim); font-size: 11px; }
+      .masks canvas { width: 128px; height: 128px; image-rendering: pixelated; border: 1px solid var(--edge); background: #000; display: block; }
+      #status, #checks { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 12px; }
+      .bad { color: var(--bad); } .good { color: var(--good); }
+      p.note { color: var(--dim); margin: 4px 0; }
+    </style>
+  </head>
+  <body>
+    <div id="view">
+      <canvas id="game"></canvas>
+      <div id="drop">Drop a .glb to load it</div>
+      <div id="hint">Drag to rotate · Shift/right-drag to roll · Drop a .glb anywhere</div>
+    </div>
+    <aside>
+      <h1>Casted level editor</h1>
+      <p class="note">Dev only. Load a model, rotate it until its shadow is the target, set the solution, save.</p>
+
+      <h2>1 · Object</h2>
+      <label>Existing level <select id="existing"></select></label>
+      <label>…or a GLB file (Draco OK) <input id="file" type="file" accept=".glb,model/gltf-binary" /></label>
+
+      <h2>2 · Solution</h2>
+      <div class="nudge" id="nudges"></div>
+      <div class="row" style="margin-top:8px">
+        <button id="setSolution" class="primary">Set solution here</button>
+        <button id="toSolution">Go to solution</button>
+      </div>
+      <div class="masks" style="margin-top:10px">
+        <figure><canvas id="liveMask" width="128" height="128"></canvas><span id="liveIou">live</span></figure>
+        <figure><canvas id="targetMask" width="128" height="128"></canvas>target</figure>
+      </div>
+      <div id="checks"></div>
+
+      <h2>3 · Level</h2>
+      <div class="grid3">
+        <label>World <input id="world" type="number" min="1" max="9" value="1" /></label>
+        <label style="grid-column: span 2">Id <input id="id" placeholder="w1-16" /></label>
+      </div>
+      <label>Target name <input id="targetName" placeholder="Bird" /></label>
+      <label>Model file name (saved to public/models/w&lt;world&gt;/) <input id="modelName" placeholder="bird_junk" /></label>
+      <label>Free axes</label>
+      <div class="row">
+        <label><input type="checkbox" id="ax-x" checked />x pitch</label>
+        <label><input type="checkbox" id="ax-y" checked />y yaw</label>
+        <label><input type="checkbox" id="ax-z" checked />z roll</label>
+      </div>
+      <label>Start offset (screen-space degrees x, y, z)</label>
+      <div class="grid3"><input id="so-x" type="number" value="80" /><input id="so-y" type="number" value="-100" /><input id="so-z" type="number" value="40" /></div>
+      <div class="row" style="margin-top:6px"><button id="toStart">Preview start</button></div>
+      <div class="grid3">
+        <label>Threshold <input id="threshold" type="number" step="0.01" min="0.8" max="0.97" value="0.9" /></label>
+        <label>Par time (s) <input id="parTime" type="number" min="5" value="40" /></label>
+        <label>Reveal <select id="reveal"></select></label>
+      </div>
+      <label><input type="checkbox" id="allowMirror" />allow mirror</label>
+
+      <h2>4 · Save</h2>
+      <div class="row">
+        <button id="save" class="primary">Save to project</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button id="dlJson">Download JSON</button>
+        <button id="dlMask">Download mask</button>
+      </div>
+      <p class="note">Save writes <code>src/data/levels/w&lt;world&gt;/&lt;id&gt;.json</code>, <code>public/masks/&lt;id&gt;.png</code> and the GLB. The game picks the level up on reload.</p>
+      <div id="status"></div>
+    </aside>
+    <script type="module" src="../src/tools/LevelEditor.ts"></script>
+  </body>
+</html>

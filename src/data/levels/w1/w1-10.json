@@ -1,0 +1,17 @@
+{
+  "id": "w1-10",
+  "world": 1,
+  "targetName": "Rocking horse",
+  "object": {
+    "kind": "procedural",
+    "silhouette": "rockingHorse",
+    "seed": 1010,
+    "junk": 1.5
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [85, -95, -60],
+  "threshold": 0.9,
+  "parTime": 60,
+  "allowMirror": false,
+  "reveal": "rock"
+}
