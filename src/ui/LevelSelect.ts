@@ -13,16 +13,16 @@ export class LevelSelect {
   private overlay = el('div', 'overlay center');
   private grid = el('div', 'level-grid');
   private sub = el('p', 'levels-sub');
+  private title = el('h2', 'levels-title');
   onPick = (_index: number) => {};
   onClose = () => {};
 
   constructor(parent: HTMLElement) {
     const card = el('div', 'card interactive');
-    const title = el('h2', 'levels-title', 'The Attic');
     const close = el('button', 'btn-secondary interactive', 'Back');
     const row = el('div', 'btn-row');
     row.append(close);
-    card.append(title, this.sub, this.grid, row);
+    card.append(this.title, this.sub, this.grid, row);
     this.overlay.append(card);
     parent.append(this.overlay);
     close.addEventListener('click', () => {
@@ -41,7 +41,8 @@ export class LevelSelect {
     return this.overlay.classList.contains('show');
   }
 
-  show(tiles: LevelTileState[]) {
+  show(worldName: string, tiles: LevelTileState[]) {
+    this.title.textContent = worldName;
     this.grid.innerHTML = '';
     const total = tiles.reduce((a, t) => a + t.stars, 0);
     this.sub.textContent = `${total} / ${tiles.length * 3} stars`;

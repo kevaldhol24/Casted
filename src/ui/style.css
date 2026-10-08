@@ -376,3 +376,140 @@ button {
 @media (prefers-reduced-motion: reduce) {
   .hand.show.h, .hand.show.v { animation-duration: 3s; }
 }
+
+/* ---------- CSS vignette (medium tier: no post-processing pass) ---------- */
+.css-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(10, 6, 3, 0.45) 100%);
+}
+
+/* ---------- Main menu ---------- */
+.overlay.menu {
+  place-items: stretch;
+  grid-template-rows: auto 1fr auto;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  background: linear-gradient(180deg, rgba(20, 14, 10, 0.25), rgba(20, 14, 10, 0.7));
+}
+.menu-top { display: flex; justify-content: space-between; align-items: center; }
+.menu-center {
+  align-self: center;
+  justify-self: center;
+  width: min(100%, 380px);
+  display: grid;
+  gap: 14px;
+  justify-items: stretch;
+}
+.logo {
+  margin: 0 0 6px;
+  text-align: center;
+  font-size: clamp(44px, 12vw, 72px);
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  padding-left: 0.18em;
+  color: var(--ink);
+  text-shadow: 0 6px 0 rgba(0, 0, 0, 0.35), 0 0 30px rgba(242, 164, 58, 0.35);
+}
+.btn-play { height: 68px; font-size: 26px; border-radius: 22px; box-shadow: 0 10px 30px rgba(242, 164, 58, 0.35); }
+.mode-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.mode-tile {
+  min-height: 64px;
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--panel-edge);
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  padding: 8px;
+}
+.mode-tile[disabled] { opacity: 0.55; cursor: default; }
+.mode-label { font-weight: 900; font-size: 17px; }
+.mode-note { font-size: 12px; font-weight: 700; color: var(--ink-dim); }
+/* CrazyGames banner (728×90 desktop, 320×50 mobile) sits here, 15–20 px clear of buttons. */
+.banner-slot { height: 50px; margin-top: 18px; }
+@media (min-width: 900px) { .banner-slot { height: 90px; } }
+
+/* ---------- World select ---------- */
+.world-list { display: grid; gap: 10px; margin-bottom: 12px; }
+.world-card {
+  position: relative;
+  min-height: 72px;
+  border-radius: 18px;
+  padding: 12px 14px 12px 64px;
+  text-align: left;
+  background: linear-gradient(120deg, var(--w-bg), color-mix(in srgb, var(--w-bg) 70%, #000));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  overflow: hidden;
+}
+.world-card[disabled] { cursor: default; filter: grayscale(0.6) brightness(0.7); }
+.world-num {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--w-accent);
+  color: #2b1a08;
+  font-weight: 900;
+  font-size: 18px;
+}
+.world-name { font-weight: 900; font-size: 18px; color: #fff6e8; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); }
+.world-meta { font-size: 13px; font-weight: 800; color: rgba(255, 246, 232, 0.8); display: inline-flex; align-items: center; gap: 4px; }
+.world-meta svg { width: 14px; height: 14px; color: var(--w-accent); }
+.star-inline svg { color: var(--accent); }
+
+/* ---------- Album ---------- */
+.album-card { width: min(100%, 520px); max-height: calc(100vh - 32px); display: grid; grid-template-rows: auto auto 1fr auto; }
+.album-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 8px;
+  overflow-y: auto;
+  margin-bottom: 4px;
+  overscroll-behavior: contain;
+}
+.album-cell {
+  aspect-ratio: 1;
+  border-radius: 14px;
+  background: #d8c3a0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  overflow: hidden;
+  position: relative;
+}
+.album-cell canvas { width: 72%; height: auto; }
+.album-name {
+  position: absolute;
+  bottom: 4px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 800;
+  color: #5a4232;
+}
+.album-cell.unknown { background: rgba(255, 246, 232, 0.06); box-shadow: inset 0 0 0 1px var(--panel-edge); }
+.album-q { font-size: 28px; font-weight: 900; color: var(--ink-dim); }
+
+/* ---------- Settings select ---------- */
+.setting select {
+  height: 36px;
+  border-radius: 10px;
+  border: 0;
+  padding: 0 10px;
+  font: inherit;
+  font-weight: 800;
+  color: var(--ink);
+  background: rgba(255, 246, 232, 0.1);
+  box-shadow: inset 0 0 0 1px var(--panel-edge);
+}
+.setting select option { color: #2b1a08; }

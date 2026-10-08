@@ -36,7 +36,14 @@ export class Input {
     window.addEventListener('pointerup', this.up);
     window.addEventListener('pointercancel', this.up);
     el.addEventListener('contextmenu', (e) => e.preventDefault());
-    window.addEventListener('wheel', (e) => e.preventDefault(), { passive: false });
+    // The host portal page must not scroll; scrollable panels (album) keep their own wheel scrolling.
+    window.addEventListener(
+      'wheel',
+      (e) => {
+        if (!(e.target as HTMLElement).closest?.('.album-grid')) e.preventDefault();
+      },
+      { passive: false },
+    );
     window.addEventListener('keydown', (e) => {
       if (BLOCKED_KEYS.has(e.code)) e.preventDefault();
       if (!e.repeat) this.h.onKey(e.code);

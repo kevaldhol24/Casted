@@ -97,7 +97,7 @@ export class LevelController {
     return this.state === 'playing';
   }
 
-  start(level: LevelDef) {
+  start(level: LevelDef, suspended = false) {
     const { scene, mask, arcball, hud, tweens, arrow } = this.c;
     tweens.clear();
     this.generation++;
@@ -112,7 +112,7 @@ export class LevelController {
     this.peakIou = 0;
     this.hintsUsed = 0;
     this.touched = false;
-    this.suspended = false;
+    this.suspended = suspended;
     this.c.renderer.push = 0;
     arrow.hide();
 
@@ -170,6 +170,8 @@ export class LevelController {
       }, this.reduceMotion ? easeOutCubic : easeOutBack)
       .then(() => {
         this.state = 'playing';
+        // Loaded behind the main menu: stay suspended until resume() (which fires gameplayStart).
+        if (this.suspended) return;
         arcball.enabled = true;
         this.c.portal.gameplayStart();
         const single = this.singleAxis();
