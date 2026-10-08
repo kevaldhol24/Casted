@@ -3,15 +3,14 @@
   "world": 1,
   "targetName": "Rabbit",
   "object": {
-    "kind": "procedural",
-    "silhouette": "rabbit",
-    "seed": 1212,
-    "junk": 1.6
+    "kind": "model",
+    "url": "models/w1/rabbit_junk.glb"
   },
   "freeAxes": ["x", "y", "z"],
   "startOffset": [75, 130, -40],
   "threshold": 0.9,
   "parTime": 55,
   "allowMirror": false,
-  "reveal": "hop"
+  "reveal": "hop",
+  "mask": "masks/w1-12.png"
 }

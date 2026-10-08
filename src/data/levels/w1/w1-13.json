@@ -3,15 +3,14 @@
   "world": 1,
   "targetName": "Guitar",
   "object": {
-    "kind": "procedural",
-    "silhouette": "guitar",
-    "seed": 1313,
-    "junk": 1.8
+    "kind": "model",
+    "url": "models/w1/guitar_junk.glb"
   },
   "freeAxes": ["x", "y", "z"],
   "startOffset": [-120, 75, 80],
   "threshold": 0.91,
   "parTime": 75,
   "allowMirror": false,
-  "reveal": "strum"
+  "reveal": "strum",
+  "mask": "masks/w1-13.png"
 }

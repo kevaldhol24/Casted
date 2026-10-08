@@ -36,6 +36,8 @@ Never add Claude/AI attribution (no `Co-Authored-By`, no "Generated with Claude 
 - `npm run dev` — dev server (http://localhost:5173)
 - `npm run build` — type-check + production build into `dist/` (relative paths, works from any subfolder)
 - `npm run preview` — serve the built `dist/`
+- `npm run models` — rebuild the World 1 models from `tools/w1-models/` → `public/models/w1/*.glb` (Draco),
+  `public/masks/*.png`, and point the level JSONs at them (other level fields are kept)
 
 Level editor (dev only, never built): `npm run dev`, then open http://localhost:5173/tools/level-editor.html.
 Load a GLB (Draco OK) or an existing level, rotate to the solution, "Set solution here", fill the form, "Save to project"

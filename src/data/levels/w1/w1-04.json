@@ -3,15 +3,14 @@
   "world": 1,
   "targetName": "Fish",
   "object": {
-    "kind": "procedural",
-    "silhouette": "fish",
-    "seed": 404,
-    "junk": 1.1
+    "kind": "model",
+    "url": "models/w1/fish_junk.glb"
   },
   "freeAxes": ["x", "y"],
   "startOffset": [-72, 85, 0],
   "threshold": 0.9,
   "parTime": 25,
   "allowMirror": false,
-  "reveal": "swim"
+  "reveal": "swim",
+  "mask": "masks/w1-04.png"
 }

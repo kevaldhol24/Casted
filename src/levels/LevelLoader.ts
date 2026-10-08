@@ -83,7 +83,15 @@ export class LevelLoader {
 export function normalizeModel(scene: THREE.Object3D): THREE.Object3D {
   scene.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(scene);
-  const sphere = box.getBoundingSphere(new THREE.Sphere());
+  // Radius = farthest vertex from the box centre: tighter than the box's own sphere (its corners are usually
+  // empty), and still a true bound, so the shadow fits the mask from every angle.
+  const sphere = new THREE.Sphere(box.getCenter(new THREE.Vector3()), 0);
+  const v = new THREE.Vector3();
+  scene.traverse((o) => {
+    const pos = (o as THREE.Mesh).isMesh ? (o as THREE.Mesh).geometry.getAttribute('position') : null;
+    if (!pos) return;
+    for (let i = 0; i < pos.count; i++) sphere.radius = Math.max(sphere.radius, v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld).distanceTo(sphere.center));
+  });
   const s = sphere.radius > 0 ? MODEL_RADIUS / sphere.radius : 1;
   const root = new THREE.Group();
   scene.position.sub(sphere.center);

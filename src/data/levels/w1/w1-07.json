@@ -3,15 +3,14 @@
   "world": 1,
   "targetName": "Bird",
   "object": {
-    "kind": "procedural",
-    "silhouette": "bird",
-    "seed": 707,
-    "junk": 1.3
+    "kind": "model",
+    "url": "models/w1/bird_junk.glb"
   },
   "freeAxes": ["x", "y", "z"],
   "startOffset": [95, 70, 50],
   "threshold": 0.9,
   "parTime": 40,
   "allowMirror": false,
-  "reveal": "flap"
+  "reveal": "flap",
+  "mask": "masks/w1-07.png"
 }

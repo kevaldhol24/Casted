@@ -3,15 +3,14 @@
   "world": 1,
   "targetName": "Teapot",
   "object": {
-    "kind": "procedural",
-    "silhouette": "teapot",
-    "seed": 606,
-    "junk": 1.4
+    "kind": "model",
+    "url": "models/w1/teapot_junk.glb"
   },
   "freeAxes": ["x", "y", "z"],
-  "startOffset": [-80, 100, -30],
+  "startOffset": [95, -75, 60],
   "threshold": 0.9,
   "parTime": 40,
   "allowMirror": false,
-  "reveal": "tilt"
+  "reveal": "tilt",
+  "mask": "masks/w1-06.png"
 }

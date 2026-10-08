@@ -3,15 +3,14 @@
   "world": 1,
   "targetName": "Rocking horse",
   "object": {
-    "kind": "procedural",
-    "silhouette": "rockingHorse",
-    "seed": 1010,
-    "junk": 1.5
+    "kind": "model",
+    "url": "models/w1/rocking_horse_junk.glb"
   },
   "freeAxes": ["x", "y", "z"],
   "startOffset": [85, -95, -60],
   "threshold": 0.9,
   "parTime": 60,
   "allowMirror": false,
-  "reveal": "rock"
+  "reveal": "rock",
+  "mask": "masks/w1-10.png"
 }

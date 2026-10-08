@@ -62,9 +62,9 @@ function convexHull(points: THREE.Vector2[]): THREE.Vector2[] {
   return lower.slice(0, -1).concat(upper.slice(0, -1));
 }
 
-/** World 1 objects Endless may use: model levels, and procedural ones whose silhouette isn't a blob. */
+/** World 1 objects Endless may use: not flagged out, and (procedural) whose silhouette isn't a blob. */
 function endlessPool(): LevelDef[] {
-  return WORLDS[0].levels.filter((l) => l.object.kind === 'model' || hullFill(l.object.silhouette) <= MAX_HULL_FILL);
+  return WORLDS[0].levels.filter((l) => l.endless !== false && (l.object.kind === 'model' || hullFill(l.object.silhouette) <= MAX_HULL_FILL));
 }
 
 /**
