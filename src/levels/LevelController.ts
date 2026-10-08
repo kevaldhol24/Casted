@@ -1,19 +1,22 @@
 import * as THREE from 'three';
 import type { Arcball } from '../core/Arcball';
+import type { GameAudio } from '../core/Audio';
 import type { Input } from '../core/Input';
 import type { Renderer } from '../core/Renderer';
+import type { HintTier } from '../core/Store';
 import type { Portal } from '../portal/Portal';
 import { MaskRenderer } from '../shadow/MaskRenderer';
 import { TargetMask, blurToBytes, meterFromIou, rgbaToMask } from '../shadow/Matcher';
 import { LIGHT_DIR, OBJECT_POS, type ShadowScene, type WorldPalette } from '../shadow/ShadowScene';
 import type { DebugView } from '../ui/DebugView';
 import type { Hud } from '../ui/Hud';
+import type { ArrowKind, ObjectArrow } from '../ui/ObjectArrow';
 import { easeInOutCubic, easeOutBack, easeOutCubic, type Tweens } from '../util/tween';
 import { junkify } from './junkify';
-import type { LevelDef } from './levels';
+import type { Axis, LevelDef } from './levels';
 import { SILHOUETTES } from './shapes';
 
-export type LevelState = 'idle' | 'intro' | 'playing' | 'snapping' | 'reveal' | 'done';
+export type LevelState = 'idle' | 'intro' | 'playing' | 'hinting' | 'snapping' | 'reveal' | 'done';
 
 export const SCORE_SIZE = 128;
 const DISPLAY_MASK_SIZE = 512;
@@ -22,6 +25,12 @@ const SNAP_TWEEN_S = 0.4;
 const DRAG_SCORE_INTERVAL_S = 1 / 15;
 const OBJECT_SIZE = 1.9;
 const MAX_START_IOU = 0.5;
+/** Hint button pulses once after this long with the meter never above 50%. */
+const HINT_PULSE_S = 45;
+/** Reveal hint leaves the player this far from the solution. */
+const REVEAL_LEFT_DEG = 15;
+
+const AXIS_ARROW: Record<Axis, ArrowKind> = { x: 'pitch', y: 'yaw', z: 'roll' };
 
 export interface LevelResult {
   level: LevelDef;
@@ -38,6 +47,8 @@ interface Ctx {
   arcball: Arcball;
   input: Input;
   hud: Hud;
+  arrow: ObjectArrow;
+  audio: GameAudio;
   tweens: Tweens;
   portal: Portal;
   palette: WorldPalette;
@@ -45,7 +56,7 @@ interface Ctx {
 }
 
 /**
- * One level's life: intro → playing → (hold ≥ threshold for 0.3 s) → snapping → reveal → done.
+ * One level's life: intro → playing (⇄ hinting) → (hold ≥ threshold for 0.3 s) → snapping → reveal → done.
  * gameplayStart fires on entering playing; gameplayStop on snapping, pause and leaving the level.
  */
 export class LevelController {
@@ -62,13 +73,22 @@ export class LevelController {
   private holdT = 0;
   private closeT = 0;
   private closeShown = false;
+  private stuckT = 0;
+  private pulsed = false;
   private scoreDirty = true;
   private sinceScore = 0;
+  /** Bumped on every level start so a stale async readback from the previous level is ignored. */
+  private generation = 0;
   private bobT = 0;
   private bobAmp = 1;
   private touched = false;
   private hintsUsed = 0;
+  /** Pause / menu / ad open: the clock stops and input is ignored. */
+  private suspended = false;
+  private lastQ = new THREE.Quaternion();
   private displayTex: THREE.DataTexture | null = null;
+  reduceMotion = false;
+  hintsEnabled = false;
   onComplete: (r: LevelResult) => void = () => {};
 
   constructor(private c: Ctx) {}
@@ -78,18 +98,23 @@ export class LevelController {
   }
 
   start(level: LevelDef) {
-    const { scene, mask, arcball, hud, tweens } = this.c;
+    const { scene, mask, arcball, hud, tweens, arrow } = this.c;
     tweens.clear();
+    this.generation++;
     this.level = level;
     this.state = 'intro';
     this.time = 0;
     this.holdT = 0;
     this.closeT = 0;
     this.closeShown = false;
+    this.stuckT = 0;
+    this.pulsed = false;
     this.peakIou = 0;
     this.hintsUsed = 0;
     this.touched = false;
+    this.suspended = false;
     this.c.renderer.push = 0;
+    arrow.hide();
 
     const geo = junkify(SILHOUETTES[level.silhouette](), {
       seed: level.seed,
@@ -125,32 +150,38 @@ export class LevelController {
     scene.glow = 0;
     scene.shadowSoftness = 3;
     scene.outlineOpacity = 0;
-    this.scoreNow();
+    this.scoreSync();
     this.meterFloor = Math.max(0.5, Math.min(this.iou + 0.03, level.threshold - 0.2));
     this.meter = meterFromIou(this.iou, level.threshold, this.meterFloor);
     hud.setMeter(this.meter);
-    hud.setTime(0);
     hud.setLevel(`${level.world}-${level.id.slice(-2).replace(/^0/, '')}`);
     hud.visible = true;
+    hud.hintVisible = this.hintsEnabled;
 
     arcball.freeAxes = level.freeAxes;
     arcball.enabled = false;
     arcball.stop();
+    this.lastQ.copy(obj.quaternion);
 
-    const finalQ = obj.quaternion.clone();
     tweens
       .to(0.6, (k) => {
         obj.scale.setScalar(Math.max(0.001, k));
         scene.outlineOpacity = k;
-      }, easeOutBack)
+      }, this.reduceMotion ? easeOutCubic : easeOutBack)
       .then(() => {
-        obj.quaternion.copy(finalQ);
         this.state = 'playing';
         arcball.enabled = true;
         this.c.portal.gameplayStart();
-        const single = level.freeAxes.length === 1 ? level.freeAxes[0] : null;
-        if (single && !this.touched) hud.showHand(single === 'y' ? 'h' : 'v');
+        const single = this.singleAxis();
+        if (single) {
+          if (!this.touched) hud.showHand(single === 'y' ? 'h' : 'v');
+          arrow.guide(AXIS_ARROW[single]);
+        }
       });
+  }
+
+  private singleAxis(): Axis | null {
+    return this.level.freeAxes.length === 1 ? this.level.freeAxes[0] : null;
   }
 
   /** The authored solution plus 180° flips about the light-space axes whose shadow also matches (symmetric shapes). */
@@ -211,43 +242,75 @@ export class LevelController {
     }
   }
 
-  private scoreNow() {
+  private prepareMask() {
     const { mask, scene } = this.c;
     // The mask camera follows the bobbing object, so the score depends on rotation only.
     mask.aim(scene.objectRoot.position, LIGHT_DIR);
     scene.objectRoot.updateMatrixWorld(true);
-    const rgba = mask.render(SCORE_SIZE);
+  }
+
+  private applyScore(rgba: Uint8Array) {
     this.iou = this.target.iou(rgba);
     this.peakIou = Math.max(this.peakIou, this.iou);
     this.c.debug?.draw(rgba, this.target.mask, this.iou, `${this.state} solutions:${this.solutions.length}`);
+  }
+
+  /** Synchronous score (level load, tests). */
+  scoreSync() {
+    this.prepareMask();
+    this.applyScore(this.c.mask.render(SCORE_SIZE));
     this.scoreDirty = false;
     this.sinceScore = 0;
   }
 
+  /** Live score: async readback, at most one in flight; results from an older level are dropped. */
+  private scoreAsync() {
+    this.prepareMask();
+    const pending = this.c.mask.renderAsync(SCORE_SIZE);
+    if (!pending) return;
+    this.scoreDirty = false;
+    this.sinceScore = 0;
+    const gen = this.generation;
+    pending.then((rgba) => {
+      if (gen === this.generation && (this.state === 'playing' || this.state === 'hinting')) this.applyScore(rgba);
+    });
+  }
+
   update(dt: number) {
-    const { arcball, input, hud, scene } = this.c;
+    const { arcball, input, hud, scene, audio } = this.c;
     this.bobT += dt;
     const moving = arcball.moving;
-    const bobGoal = this.state === 'playing' && !moving ? 1 : 0;
+    const bobGoal = this.state === 'playing' && !moving && !this.reduceMotion ? 1 : 0;
     this.bobAmp += (bobGoal - this.bobAmp) * Math.min(1, dt * 3);
     if (this.state === 'intro' || this.state === 'playing') {
       scene.objectRoot.position.y = OBJECT_POS.y + Math.sin(this.bobT * 1.6) * 0.035 * this.bobAmp;
     }
 
-    if (this.state !== 'playing') return;
-    this.time += dt;
-    hud.setTime(this.time);
-    hud.dim = input.dragging;
+    // Creak follows how fast the object is turning, whatever turned it (drag, inertia, hint tween).
+    const obj = scene.objectRoot;
+    const turned = (obj.quaternion.angleTo(this.lastQ) * 180) / Math.PI;
+    this.lastQ.copy(obj.quaternion);
+    audio.setRotateSpeed(dt > 0 && this.state !== 'snapping' ? turned / dt : 0);
 
-    arcball.update(dt, input.keyAxes());
-    if (arcball.changed) this.scoreDirty = true;
+    if ((this.state !== 'playing' && this.state !== 'hinting') || this.suspended) {
+      audio.setMatch(0);
+      return;
+    }
+    if (this.state === 'playing') {
+      this.time += dt;
+      hud.dim = input.dragging;
+      arcball.update(dt, input.keyAxes());
+      if (arcball.changed) this.scoreDirty = true;
+    } else this.scoreDirty = true;
     this.sinceScore += dt;
-    if (this.scoreDirty && (!input.dragging || this.sinceScore >= DRAG_SCORE_INTERVAL_S)) this.scoreNow();
+    if (this.scoreDirty && (!input.dragging || this.sinceScore >= DRAG_SCORE_INTERVAL_S)) this.scoreAsync();
 
     const goal = meterFromIou(this.iou, this.level.threshold, this.meterFloor);
     this.meter += (goal - this.meter) * Math.min(1, dt * 12);
     hud.setMeter(this.meter);
+    audio.setMatch(this.meter);
     scene.glow = THREE.MathUtils.smoothstep(this.meter, 0.7, 1.0);
+    if (this.state !== 'playing') return;
 
     if (this.iou >= this.level.threshold) {
       this.holdT += dt;
@@ -261,10 +324,109 @@ export class LevelController {
         hud.toast('Close!');
       }
     } else this.closeT = 0;
+
+    // No progress above 50% for 45 s → pulse the hint button once.
+    if (this.meter > 0.5) this.stuckT = 0;
+    else this.stuckT += dt;
+    if (this.hintsEnabled && !this.pulsed && this.stuckT > HINT_PULSE_S) {
+      this.pulsed = true;
+      hud.pulseHint();
+    }
+  }
+
+  private nearestSolution(): THREE.Quaternion {
+    const q = this.c.scene.objectRoot.quaternion;
+    let best = this.solutions[0];
+    for (const s of this.solutions) if (q.angleTo(s) < q.angleTo(best)) best = s;
+    return best;
+  }
+
+  /**
+   * Apply a hint. Any hint caps the level at 1 star.
+   * Nudge: an arrow for 2 s showing which way to drag. Peek: auto-rotate halfway to the solution.
+   * Reveal: rotate to within 15° of the solution and flash the solved shadow; the player finishes it.
+   */
+  async useHint(tier: HintTier) {
+    if (this.state !== 'playing') return;
+    const { arcball, scene, tweens, audio, arrow } = this.c;
+    this.hintsUsed++;
+    this.stuckT = 0;
+    audio.hint();
+    this.touched = true;
+    this.c.hud.showHand(null);
+
+    if (tier === 'nudge') {
+      const n = this.nudgeDirection();
+      const single = this.singleAxis();
+      arrow.nudge(n.kind, n.sign, 2, single ? AXIS_ARROW[single] : null);
+      return;
+    }
+
+    const obj = scene.objectRoot;
+    const from = obj.quaternion.clone();
+    const to = this.nearestSolution().clone();
+    const total = from.angleTo(to);
+    const k = tier === 'peek' ? this.peekAmount(from, to) : Math.max(0, 1 - THREE.MathUtils.degToRad(REVEAL_LEFT_DEG) / Math.max(total, 1e-6));
+    const goal = from.clone().slerp(to, k);
+    this.state = 'hinting';
+    arcball.enabled = false;
+    arcball.stop();
+    await tweens.to(tier === 'peek' ? 0.9 : 1.2, (t) => obj.quaternion.slerpQuaternions(from, goal, t), easeInOutCubic);
+    if (tier === 'reveal') {
+      await tweens.to(0.35, (t) => (scene.fill = 0.55 * t));
+      await tweens.to(0.6, (t) => (scene.fill = 0.55 * (1 - t)));
+    }
+    if (this.state !== 'hinting') return;
+    this.state = 'playing';
+    arcball.enabled = true;
+    this.scoreDirty = true;
+  }
+
+  /**
+   * Peek turns halfway to the solution — but halfway in rotation doesn't always look closer in shadow, so if
+   * it wouldn't visibly raise the score, go further (up to 80%) so the hint always moves the meter.
+   */
+  private peekAmount(from: THREE.Quaternion, to: THREE.Quaternion): number {
+    const obj = this.c.scene.objectRoot;
+    const start = this.iou;
+    let pick = 0.8;
+    for (const k of [0.5, 0.6, 0.7, 0.8]) {
+      obj.quaternion.slerpQuaternions(from, to, k);
+      this.prepareMask();
+      if (this.target.iou(this.c.mask.render(SCORE_SIZE)) > start + 0.08) {
+        pick = k;
+        break;
+      }
+    }
+    obj.quaternion.copy(from);
+    return pick;
+  }
+
+  /** Which way to drag next: the free screen axis with the largest share of the remaining rotation. */
+  private nudgeDirection(): { kind: ArrowKind; sign: number } {
+    const { scene, mask } = this.c;
+    const q = scene.objectRoot.quaternion;
+    const delta = this.nearestSolution().clone().multiply(q.clone().invert());
+    if (delta.w < 0) delta.set(-delta.x, -delta.y, -delta.z, -delta.w);
+    const angle = 2 * Math.acos(Math.min(1, delta.w));
+    const s = Math.sqrt(1 - delta.w * delta.w);
+    const axis = s < 1e-6 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(delta.x / s, delta.y / s, delta.z / s);
+    const m = mask.camera.matrixWorld;
+    const comp: Record<Axis, number> = {
+      x: axis.dot(new THREE.Vector3().setFromMatrixColumn(m, 0)) * angle,
+      y: axis.dot(new THREE.Vector3().setFromMatrixColumn(m, 1)) * angle,
+      z: axis.dot(new THREE.Vector3().setFromMatrixColumn(m, 2)) * angle,
+    };
+    let best: Axis = this.level.freeAxes[0];
+    for (const a of this.level.freeAxes) if (Math.abs(comp[a]) > Math.abs(comp[best])) best = a;
+    // Positive yaw = drag right, positive pitch = drag down; positive roll turns anticlockwise on screen,
+    // and the roll arc is drawn clockwise, so roll flips.
+    const sign = Math.sign(comp[best]) || 1;
+    return { kind: AXIS_ARROW[best], sign: best === 'z' ? -sign : sign };
   }
 
   private snap() {
-    const { arcball, scene, tweens, hud, portal } = this.c;
+    const { arcball, scene, tweens, hud, portal, audio, arrow } = this.c;
     this.state = 'snapping';
     arcball.enabled = false;
     arcball.release();
@@ -272,11 +434,12 @@ export class LevelController {
     portal.gameplayStop();
     hud.showHand(null);
     hud.dim = false;
+    arrow.hide();
+    audio.setRotateSpeed(0);
 
     const obj = scene.objectRoot;
     const from = obj.quaternion.clone();
-    let best = this.solutions[0];
-    for (const s of this.solutions) if (from.angleTo(s) < from.angleTo(best)) best = s;
+    const best = this.nearestSolution();
     const fromY = obj.position.y;
     tweens
       .to(SNAP_TWEEN_S, (k) => {
@@ -289,17 +452,22 @@ export class LevelController {
   }
 
   private async reveal() {
-    const { scene, tweens, renderer, portal } = this.c;
+    const { scene, tweens, renderer, portal, audio } = this.c;
     this.state = 'reveal';
     this.iou = 1;
-    scene.burst();
+    audio.chime();
+    audio.duck(true);
+    if (!this.reduceMotion) scene.burst();
     portal.happyTime?.();
     tweens.to(0.5, (k) => (scene.shadowSoftness = 3 - 2.5 * k));
     tweens.to(0.8, (k) => (scene.fill = k), easeInOutCubic);
-    await tweens.to(0.15, (k) => (renderer.push = 0.45 * k), easeOutCubic);
-    await tweens.to(0.7, (k) => (renderer.push = 0.45 * (1 - k)), easeInOutCubic);
+    if (!this.reduceMotion) {
+      await tweens.to(0.15, (k) => (renderer.push = 0.45 * k), easeOutCubic);
+      await tweens.to(0.7, (k) => (renderer.push = 0.45 * (1 - k)), easeInOutCubic);
+    } else await tweens.to(0.85, () => {});
     renderer.push = 0;
     await tweens.to(0.5, () => {});
+    audio.duck(false);
 
     const stars = this.hintsUsed > 0 ? 1 : this.time <= this.level.parTime ? 3 : 2;
     this.state = 'done';
@@ -307,13 +475,17 @@ export class LevelController {
     this.onComplete({ level: this.level, time: this.time, stars, hintsUsed: this.hintsUsed, peakIou: this.peakIou });
   }
 
-  /** Leaving the level (menu, pause): stop gameplay without completing. */
+  /** Leaving the level (pause, menu, ad): stop gameplay without completing. */
   suspend() {
+    this.suspended = true;
     if (this.state === 'playing') this.c.portal.gameplayStop();
     this.c.arcball.enabled = false;
+    this.c.arcball.release();
+    this.c.audio.setRotateSpeed(0);
   }
 
   resume() {
+    this.suspended = false;
     if (this.state === 'playing') {
       this.c.portal.gameplayStart();
       this.c.arcball.enabled = true;

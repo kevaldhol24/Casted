@@ -31,6 +31,9 @@ export class LocalPortal implements Portal {
     this.log('rewarded (granted in local build)');
     return true;
   }
+  rewardedAvailable() {
+    return true;
+  }
   happyTime() {
     this.log('happyTime');
   }

@@ -106,12 +106,173 @@ function catSitting(): Silhouette {
   return [body, head, earL, earR, tail, paws];
 }
 
+const V = (x: number, y: number) => new THREE.Vector2(x, y);
+const line = (x0: number, y0: number, x1: number, y1: number, w: number) => stroke(new THREE.LineCurve(V(x0, y0), V(x1, y1)), w, 2);
+const curve = (pts: [number, number][], w: number) =>
+  stroke(
+    pts.length === 3
+      ? new THREE.QuadraticBezierCurve(V(...pts[0]), V(...pts[1]), V(...pts[2]))
+      : new THREE.CubicBezierCurve(V(...pts[0]), V(...pts[1]), V(...pts[2]), V(...pts[3])),
+    w,
+  );
+const ring = (cx: number, cy: number, r: number, inner: number) => {
+  const s = circle(cx, cy, r);
+  s.holes.push(hole(cx, cy, inner));
+  return s;
+};
+
+function teapot(): Silhouette {
+  return [
+    ellipse(0, -0.15, 0.62, 0.48),
+    ellipse(0, 0.33, 0.32, 0.1),
+    circle(0, 0.47, 0.08),
+    curve([[0.45, -0.2], [0.8, -0.15], [0.98, 0.28]], 0.14),
+    curve([[-0.5, 0.15], [-1.0, 0.2], [-1.0, -0.35], [-0.52, -0.35]], 0.1),
+    rect(-0.36, -0.7, 0.36, -0.56),
+  ];
+}
+
+function bird(): Silhouette {
+  return [
+    ellipse(0, 0, 0.46, 0.14, 0.08),
+    circle(0.46, 0.1, 0.13),
+    poly([[0.56, 0.13], [0.74, 0.08], [0.56, 0.03]]),
+    poly([[-0.12, 0.06], [0.16, 0.06], [-0.22, 0.72], [-0.58, 0.86], [-0.36, 0.48]]),
+    poly([[0.0, 0.04], [0.22, 0.02], [0.48, 0.62], [0.3, 0.7]]),
+    poly([[-0.38, 0.02], [-0.86, 0.2], [-0.8, -0.14]]),
+  ];
+}
+
+function umbrella(): Silhouette {
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= 24; i++) {
+    const a = (i / 24) * Math.PI;
+    pts.push([Math.cos(a), 0.68 * Math.sin(a)]);
+  }
+  for (let i = 1; i < 24; i++) {
+    const x = -1 + (i / 24) * 2;
+    pts.push([x, 0.1 * Math.abs(Math.sin(((x + 1) / 0.5) * Math.PI))]);
+  }
+  return [
+    poly(pts),
+    rect(-0.04, -0.85, 0.04, 0.1),
+    curve([[0, -0.82], [0, -1.02], [-0.26, -1.02], [-0.26, -0.84]], 0.08),
+    poly([[-0.05, 0.64], [0.05, 0.64], [0, 0.82]]),
+  ];
+}
+
+function bicycle(): Silhouette {
+  const w = 0.08;
+  return [
+    ring(-0.56, -0.28, 0.42, 0.33),
+    ring(0.56, -0.28, 0.42, 0.33),
+    circle(-0.56, -0.28, 0.07),
+    circle(0.56, -0.28, 0.07),
+    line(-0.56, -0.28, 0.56, -0.28, 0.07),
+    line(-0.05, -0.28, -0.2, 0.28, w),
+    line(-0.2, 0.25, 0.34, 0.25, w),
+    line(-0.05, -0.28, 0.34, 0.22, w),
+    line(0.34, 0.25, 0.56, -0.28, w),
+    line(-0.05, -0.28, -0.56, -0.28, w),
+    line(-0.2, 0.25, -0.56, -0.28, w),
+    curve([[0.34, 0.25], [0.3, 0.45], [0.48, 0.48]], w),
+    rect(-0.34, 0.3, -0.06, 0.37),
+    circle(-0.05, -0.28, 0.1),
+  ];
+}
+
+function rockingHorse(): Silhouette {
+  return [
+    curve([[-0.95, -0.55], [-0.4, -0.95], [0.4, -0.95], [0.95, -0.55]], 0.1),
+    ellipse(-0.05, 0.0, 0.52, 0.2),
+    line(-0.4, -0.05, -0.55, -0.7, 0.1),
+    line(-0.22, -0.05, -0.25, -0.8, 0.1),
+    line(0.18, -0.05, 0.22, -0.8, 0.1),
+    line(0.35, -0.05, 0.52, -0.72, 0.1),
+    poly([[0.25, 0.05], [0.48, 0.12], [0.66, 0.55], [0.44, 0.62]]),
+    ellipse(0.66, 0.55, 0.22, 0.11, -0.45),
+    poly([[0.5, 0.66], [0.56, 0.86], [0.62, 0.66]]),
+    curve([[-0.52, 0.06], [-0.8, 0.05], [-0.88, -0.32]], 0.09),
+    poly([[0.32, 0.5], [0.4, 0.75], [0.24, 0.6], [0.2, 0.2]]),
+  ];
+}
+
+function key(): Silhouette {
+  return [
+    ring(-0.6, 0, 0.32, 0.15),
+    rect(-0.32, -0.065, 0.88, 0.065),
+    rect(0.52, -0.3, 0.63, -0.06),
+    rect(0.72, -0.24, 0.84, -0.06),
+    rect(-0.18, -0.12, -0.08, 0.12),
+  ];
+}
+
+function rabbit(): Silhouette {
+  return [
+    ellipse(-0.05, -0.42, 0.52, 0.44),
+    circle(0.26, 0.1, 0.27),
+    ellipse(0.14, 0.56, 0.085, 0.32, 0.15),
+    ellipse(0.38, 0.52, 0.085, 0.3, -0.3),
+    circle(-0.54, -0.48, 0.13),
+    ellipse(0.26, -0.84, 0.26, 0.075),
+  ];
+}
+
+function guitar(): Silhouette {
+  const lower = circle(0, -0.48, 0.42);
+  lower.holes.push(hole(0, -0.48, 0.12));
+  return [
+    lower,
+    ellipse(0, -0.02, 0.32, 0.3),
+    rect(-0.06, 0.24, 0.06, 0.84),
+    rect(-0.11, 0.82, 0.11, 1.0),
+    rect(-0.18, -0.74, 0.18, -0.66),
+  ];
+}
+
+function anchor(): Silhouette {
+  return [
+    rect(-0.06, -0.78, 0.06, 0.6),
+    ring(0, 0.76, 0.17, 0.08),
+    rect(-0.4, 0.4, 0.4, 0.5),
+    curve([[-0.72, -0.2], [-0.6, -0.95], [0.6, -0.95], [0.72, -0.2]], 0.11),
+    poly([[-0.88, -0.3], [-0.62, -0.08], [-0.66, -0.38]]),
+    poly([[0.88, -0.3], [0.62, -0.08], [0.66, -0.38]]),
+  ];
+}
+
+function elephant(): Silhouette {
+  const head = circle(0.6, 0.12, 0.3);
+  head.holes.push(hole(0.72, 0.22, 0.045));
+  return [
+    ellipse(-0.05, -0.08, 0.62, 0.42),
+    head,
+    ellipse(0.42, 0.1, 0.2, 0.28),
+    curve([[0.82, 0.0], [0.95, -0.3], [0.9, -0.62], [1.04, -0.6]], 0.13),
+    rect(-0.52, -0.82, -0.32, -0.3),
+    rect(-0.24, -0.82, -0.06, -0.3),
+    rect(0.12, -0.82, 0.3, -0.3),
+    rect(0.36, -0.82, 0.54, -0.3),
+    curve([[-0.64, 0.05], [-0.8, -0.05], [-0.82, -0.35]], 0.07),
+  ];
+}
+
 export const SILHOUETTES: Record<string, () => Silhouette> = {
   heart,
   star,
   house,
   fish,
   cat: catSitting,
+  teapot,
+  bird,
+  umbrella,
+  bicycle,
+  rockingHorse,
+  key,
+  rabbit,
+  guitar,
+  anchor,
+  elephant,
 };
 
 // --- geometry helpers used by junkify ------------------------------------------------------------
