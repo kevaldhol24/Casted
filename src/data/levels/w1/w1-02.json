@@ -3,15 +3,14 @@
   "world": 1,
   "targetName": "Star",
   "object": {
-    "kind": "procedural",
-    "silhouette": "star",
-    "seed": 202,
-    "junk": 0.9
+    "kind": "model",
+    "url": "models/w1/star_junk.glb"
   },
   "freeAxes": ["y"],
   "startOffset": [0, -95, 0],
   "threshold": 0.9,
   "parTime": 15,
   "allowMirror": true,
-  "reveal": "spin"
+  "reveal": "spin",
+  "mask": "masks/w1-02.png"
 }

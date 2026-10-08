@@ -3,15 +3,14 @@
   "world": 1,
   "targetName": "Umbrella",
   "object": {
-    "kind": "procedural",
-    "silhouette": "umbrella",
-    "seed": 808,
-    "junk": 1.5
+    "kind": "model",
+    "url": "models/w1/umbrella_junk.glb"
   },
   "freeAxes": ["x", "y", "z"],
   "startOffset": [110, -60, 70],
   "threshold": 0.9,
   "parTime": 45,
   "allowMirror": false,
-  "reveal": "sway"
+  "reveal": "sway",
+  "mask": "masks/w1-08.png"
 }

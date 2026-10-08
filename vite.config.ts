@@ -72,4 +72,6 @@ export default defineConfig({
   plugins: [levelEditor()],
   build: { target: 'es2020', assetsInlineLimit: 0, chunkSizeWarningLimit: 800 },
   server: { host: true },
+  // Model loaders are imported lazily; pre-bundle them so the first model level doesn't hit a dev re-optimise (504).
+  optimizeDeps: { include: ['three/addons/loaders/GLTFLoader.js', 'three/addons/loaders/DRACOLoader.js'] },
 });

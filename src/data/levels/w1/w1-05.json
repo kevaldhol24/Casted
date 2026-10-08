@@ -3,15 +3,14 @@
   "world": 1,
   "targetName": "Cat",
   "object": {
-    "kind": "procedural",
-    "silhouette": "cat",
-    "seed": 505,
-    "junk": 1.3
+    "kind": "model",
+    "url": "models/w1/cat_junk.glb"
   },
   "freeAxes": ["x", "y", "z"],
   "startOffset": [75, -110, 40],
   "threshold": 0.9,
   "parTime": 35,
   "allowMirror": false,
-  "reveal": "hop"
+  "reveal": "hop",
+  "mask": "masks/w1-05.png"
 }

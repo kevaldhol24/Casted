@@ -3,15 +3,14 @@
   "world": 1,
   "targetName": "Key",
   "object": {
-    "kind": "procedural",
-    "silhouette": "key",
-    "seed": 1111,
-    "junk": 1.6
+    "kind": "model",
+    "url": "models/w1/key_junk.glb"
   },
   "freeAxes": ["x", "y", "z"],
   "startOffset": [-100, -80, 45],
   "threshold": 0.9,
   "parTime": 50,
   "allowMirror": false,
-  "reveal": "swing"
+  "reveal": "swing",
+  "mask": "masks/w1-11.png"
 }

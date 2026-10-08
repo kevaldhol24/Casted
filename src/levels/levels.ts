@@ -30,6 +30,8 @@ export interface LevelDef {
   parTime: number;
   allowMirror: boolean;
   reveal?: RevealKind;
+  /** false = leave this object out of Endless (its shadow is a near-convex blob, like the heart). */
+  endless?: boolean;
   /** Target mask PNG (relative to the site root) — the Album draws it for model levels. */
   mask?: string;
 }

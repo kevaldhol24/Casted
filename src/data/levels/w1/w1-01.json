@@ -3,15 +3,15 @@
   "world": 1,
   "targetName": "Heart",
   "object": {
-    "kind": "procedural",
-    "silhouette": "heart",
-    "seed": 101,
-    "junk": 0.6
+    "kind": "model",
+    "url": "models/w1/heart_junk.glb"
   },
   "freeAxes": ["y"],
   "startOffset": [0, 90, 0],
   "threshold": 0.9,
   "parTime": 10,
   "allowMirror": true,
-  "reveal": "pulse"
+  "reveal": "pulse",
+  "endless": false,
+  "mask": "masks/w1-01.png"
 }
