@@ -12,9 +12,12 @@ export class PausePanel {
   onResume = () => {};
   onRestart = () => {};
   onLevels = () => {};
+  onMenu = () => {};
   onSettings = (_s: Settings) => {};
   private settings!: Settings;
   private inputs: Record<string, HTMLInputElement> = {};
+  private quality = el('select', 'interactive');
+  private back!: () => void;
 
   constructor(parent: HTMLElement) {
     const card = el('div', 'card interactive');
@@ -22,10 +25,11 @@ export class PausePanel {
     const restart = el('button', 'btn-secondary interactive', 'Restart');
     const levels = el('button', 'btn-secondary interactive', 'Levels');
     const settings = el('button', 'btn-secondary interactive', 'Settings');
+    const menu = el('button', 'btn-secondary interactive', 'Menu');
     const row = el('div', 'btn-row');
     row.append(restart, levels);
     const row2 = el('div', 'btn-row');
-    row2.append(settings);
+    row2.append(settings, menu);
     this.menu.append(resume, row, row2);
 
     const slider = (key: 'music' | 'sfx' | 'sensitivity', label: string, min: number, max: number, step: number) => {
@@ -54,6 +58,18 @@ export class PausePanel {
     });
     this.inputs.reduceMotion = reduce;
     toggle.append(el('span', '', 'Reduce motion'), reduce);
+    const qualityRow = el('label', 'setting');
+    for (const [v, t] of [['auto', 'Auto'], ['high', 'High'], ['medium', 'Medium'], ['low', 'Low']] as const) {
+      const o = el('option');
+      o.value = v;
+      o.textContent = t;
+      this.quality.append(o);
+    }
+    this.quality.addEventListener('change', () => {
+      this.settings.quality = this.quality.value as Settings['quality'];
+      this.onSettings(this.settings);
+    });
+    qualityRow.append(el('span', '', 'Quality'), this.quality);
     const back = el('button', 'btn-secondary interactive', 'Back');
     const backRow = el('div', 'btn-row');
     backRow.append(back);
@@ -61,6 +77,7 @@ export class PausePanel {
       slider('music', 'Music', 0, 1, 0.05),
       slider('sfx', 'Sounds', 0, 1, 0.05),
       slider('sensitivity', 'Rotation speed', 0.4, 2, 0.05),
+      qualityRow,
       toggle,
       backRow,
     );
@@ -73,9 +90,12 @@ export class PausePanel {
     restart.addEventListener('click', () => this.fire(this.onRestart));
     levels.addEventListener('click', () => this.fire(this.onLevels));
     settings.addEventListener('click', () => this.view('settings'));
-    back.addEventListener('click', () => this.view('menu'));
+    menu.addEventListener('click', () => this.fire(this.onMenu));
+    back.addEventListener('click', () => this.back());
     this.overlay.addEventListener('pointerdown', (e) => {
-      if (e.target === this.overlay) this.fire(this.onResume);
+      if (e.target !== this.overlay) return;
+      if (this.menu.style.display === 'none') this.back();
+      else this.fire(this.onResume);
     });
   }
 
@@ -94,12 +114,19 @@ export class PausePanel {
     this.settingsView.style.display = v === 'settings' ? '' : 'none';
   }
 
-  show(settings: Settings, startIn: 'menu' | 'settings' = 'menu') {
+  /**
+   * `standalone` opens Settings on its own (from the main menu): Back closes the card instead of returning
+   * to the pause menu.
+   */
+  show(settings: Settings, standalone = false, onClose: () => void = () => {}) {
+    const startIn = standalone ? 'settings' : 'menu';
+    this.back = standalone ? () => this.fire(onClose) : () => this.view('menu');
     this.settings = settings;
     this.inputs.music.value = String(settings.music);
     this.inputs.sfx.value = String(settings.sfx);
     this.inputs.sensitivity.value = String(settings.sensitivity);
     this.inputs.reduceMotion.checked = settings.reduceMotion;
+    this.quality.value = settings.quality;
     this.view(startIn);
     this.overlay.classList.add('show');
   }

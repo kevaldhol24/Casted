@@ -1,3 +1,5 @@
+import type { QualitySetting } from './Quality';
+
 export interface LevelRecord {
   stars: number;
   bestTime: number;
@@ -11,7 +13,14 @@ export interface SaveData {
   freeHintUsed: boolean;
   /** UTC date (YYYY-MM-DD) of the last daily-login Bulb. */
   lastLogin: string;
-  settings: { sensitivity: number; reduceMotion: boolean; muted: boolean; music: number; sfx: number };
+  settings: {
+    sensitivity: number;
+    reduceMotion: boolean;
+    muted: boolean;
+    music: number;
+    sfx: number;
+    quality: QualitySetting;
+  };
 }
 
 const KEY = 'casted.save';
@@ -22,7 +31,7 @@ export const defaultSave = (): SaveData => ({
   bulbs: 3,
   freeHintUsed: false,
   lastLogin: '',
-  settings: { sensitivity: 1, reduceMotion: false, muted: false, music: 0.7, sfx: 0.8 },
+  settings: { sensitivity: 1, reduceMotion: false, muted: false, music: 0.7, sfx: 0.8, quality: 'auto' },
 });
 
 /** Bulb rewards from the design doc's economy table. */
@@ -101,6 +110,10 @@ export class Store {
 
   isSolved(id: string) {
     return (this.data.levels[id]?.stars ?? 0) > 0;
+  }
+
+  totalStars(ids: string[]) {
+    return ids.reduce((a, id) => a + this.stars(id), 0);
   }
 
   stars(id: string) {

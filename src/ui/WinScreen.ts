@@ -19,12 +19,12 @@ export class WinScreen {
   private stars: HTMLElement[] = [];
   private next = el('button', 'btn-primary interactive', 'Next<span class="auto"></span>');
   private replay = el('button', 'btn-secondary interactive', 'Replay');
-  private levels = el('button', 'btn-secondary interactive', 'Levels');
+  private levels = el('button', 'btn-secondary interactive', 'Menu');
   private autoBar: HTMLElement;
   private autoT = -1;
   onNext = () => {};
   onReplay = () => {};
-  onLevels = () => {};
+  onMenu = () => {};
   onStar = (_index: number) => {};
 
   constructor(parent: HTMLElement) {
@@ -43,7 +43,7 @@ export class WinScreen {
     this.autoBar = this.next.querySelector('.auto')!;
     this.next.addEventListener('click', () => this.fire(this.onNext));
     this.replay.addEventListener('click', () => this.fire(this.onReplay));
-    this.levels.addEventListener('click', () => this.fire(this.onLevels));
+    this.levels.addEventListener('click', () => this.fire(this.onMenu));
     // Any interaction with the card cancels the auto-advance.
     card.addEventListener('pointerdown', () => this.cancelAuto());
   }
@@ -60,7 +60,7 @@ export class WinScreen {
     const parHit = info.time <= info.parTime;
     const bulbs = info.bulbsEarned > 0 ? ` · +${info.bulbsEarned} ${ICONS.bulb}` : '';
     this.sub.innerHTML = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}${parHit ? ' · under par' : ` · par ${info.parTime}s`}<span class="bulb-inline">${bulbs}</span>`;
-    this.next.firstChild!.textContent = info.isLast ? 'Levels' : 'Next';
+    this.next.firstChild!.textContent = info.isLast ? 'Menu' : 'Next';
     this.levels.style.display = info.isLast ? 'none' : '';
     this.stars.forEach((s) => s.classList.remove('on', 'off-shown'));
     this.overlay.classList.add('show');

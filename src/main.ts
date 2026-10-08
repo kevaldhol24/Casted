@@ -20,7 +20,12 @@ async function boot() {
   game.start();
   if (import.meta.env.DEV) (window as unknown as { __casted: Game }).__casted = game;
   portal.loadingFinished();
-  document.getElementById('boot')?.remove();
+  // Let the bar finish, then fade the loading screen out over the first frame.
+  const boot = document.getElementById('boot');
+  if (boot) {
+    requestAnimationFrame(() => boot.classList.add('done'));
+    setTimeout(() => boot.remove(), 600);
+  }
 }
 
 boot();

@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { PostFX } from './PostFX';
+import type { TierSpec } from './Quality';
 
 /**
  * WebGL renderer + the fixed gameplay camera. The camera is re-fitted on every resize so the object and its
@@ -13,7 +15,9 @@ export class Renderer {
   private baseDistance = 10;
   /** Extra push-in (world units) for the reveal camera move. */
   push = 0;
-  private dprCap: number;
+  private dprCap = 2;
+  private post: PostFX | null = null;
+  private spec: TierSpec | null = null;
 
   constructor(readonly canvas: HTMLCanvasElement) {
     this.gl = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -22,10 +26,18 @@ export class Renderer {
     this.gl.toneMapping = THREE.ACESFilmicToneMapping;
     this.gl.toneMappingExposure = 1.05;
     this.gl.outputColorSpace = THREE.SRGBColorSpace;
-    const coarse = matchMedia('(pointer: coarse)').matches;
-    this.dprCap = coarse ? 1.5 : 2;
     window.addEventListener('resize', () => this.resize());
     this.resize();
+  }
+
+  /** Apply a quality tier: pixel-ratio cap and post-processing. Returns whether a CSS vignette is wanted. */
+  setTier(spec: TierSpec, scene: THREE.Scene): boolean {
+    this.spec = spec;
+    this.dprCap = spec.dprCap;
+    this.post ??= new PostFX(this.gl, scene, this.camera);
+    this.post.configure(spec);
+    this.resize();
+    return this.post.cssVignette;
   }
 
   setFocus(points: THREE.Vector3[]) {
@@ -38,6 +50,7 @@ export class Renderer {
     const h = this.canvas.clientHeight || window.innerHeight;
     this.gl.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.dprCap));
     this.gl.setSize(w, h, false);
+    this.post?.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.fit();
@@ -92,9 +105,10 @@ export class Renderer {
     this.camera.updateMatrixWorld();
   }
 
-  render(scene: THREE.Scene) {
+  render(scene: THREE.Scene, dt: number) {
     if (this.push !== 0) this.place(this.baseDistance - this.push);
-    this.gl.render(scene, this.camera);
+    if (this.post && this.spec) this.post.render(dt);
+    else this.gl.render(scene, this.camera);
     if (this.push !== 0) this.place(this.baseDistance);
   }
 }

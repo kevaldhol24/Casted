@@ -208,8 +208,19 @@ export class ShadowScene {
   set outlineOpacity(v: number) {
     this.outline.material.uniforms.uOpacity.value = v;
   }
+  /** Scale applied to every softness value (low tier halves the blur). */
+  private softnessScale = 1;
   set shadowSoftness(r: number) {
-    this.light.shadow.radius = r;
+    this.light.shadow.radius = r * this.softnessScale;
+  }
+
+  /** Resize the visible shadow map (quality tier). Scoring never uses it, so this can change mid-level. */
+  setShadowQuality(mapSize: number, softnessScale: number) {
+    this.softnessScale = softnessScale;
+    if (this.light.shadow.mapSize.x === mapSize) return;
+    this.light.shadow.mapSize.set(mapSize, mapSize);
+    this.light.shadow.map?.dispose();
+    this.light.shadow.map = null;
   }
 
   burst() {
