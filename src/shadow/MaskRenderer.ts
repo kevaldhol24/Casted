@@ -46,6 +46,43 @@ export class MaskRenderer {
   /** Render the current silhouette; returns RGBA pixels (row 0 = bottom). The array is reused per size. */
   render(size: number): Uint8Array {
     const { rt, pixels } = this.target(size);
+    this.draw(rt);
+    this.renderer.readRenderTargetPixels(rt, 0, 0, size, size, pixels);
+    return pixels;
+  }
+
+  private asyncTarget: { rt: THREE.WebGLRenderTarget; pixels: Uint8Array; size: number } | null = null;
+  private asyncBusy = false;
+
+  /**
+   * Live scoring path: renders now, reads back without stalling the GPU (WebGL2 pixel buffer + fence).
+   * Uses its own render target so a sync render (level load) can't overwrite a read in flight.
+   * Returns null if a read is already pending — the caller simply scores again next frame.
+   */
+  renderAsync(size: number): Promise<Uint8Array> | null {
+    if (this.asyncBusy) return null;
+    if (!this.asyncTarget || this.asyncTarget.size !== size) {
+      this.asyncTarget?.rt.dispose();
+      const rt = new THREE.WebGLRenderTarget(size, size, { depthBuffer: true, samples: 0 });
+      rt.texture.generateMipmaps = false;
+      this.asyncTarget = { rt, pixels: new Uint8Array(size * size * 4), size };
+    }
+    const t = this.asyncTarget;
+    this.draw(t.rt);
+    this.asyncBusy = true;
+    return this.renderer
+      .readRenderTargetPixelsAsync(t.rt, 0, 0, size, size, t.pixels)
+      .then(() => t.pixels)
+      .catch(() => {
+        this.renderer.readRenderTargetPixels(t.rt, 0, 0, size, size, t.pixels);
+        return t.pixels;
+      })
+      .finally(() => {
+        this.asyncBusy = false;
+      });
+  }
+
+  private draw(rt: THREE.WebGLRenderTarget) {
     const r = this.renderer;
     const prevTarget = r.getRenderTarget();
     const prevBg = this.scene.background;
@@ -57,16 +94,15 @@ export class MaskRenderer {
     r.setRenderTarget(rt);
     r.clear();
     r.render(this.scene, this.camera);
-    r.readRenderTargetPixels(rt, 0, 0, size, size, pixels);
     r.setRenderTarget(prevTarget);
     r.shadowMap.autoUpdate = prevAutoShadow;
     this.scene.background = prevBg;
     this.scene.overrideMaterial = prevOverride;
-    return pixels;
   }
 
   dispose() {
     this.targets.forEach((t) => t.rt.dispose());
+    this.asyncTarget?.rt.dispose();
     this.white.dispose();
   }
 }

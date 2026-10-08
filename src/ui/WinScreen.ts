@@ -8,6 +8,7 @@ export interface WinInfo {
   time: number;
   parTime: number;
   isLast: boolean;
+  bulbsEarned: number;
 }
 
 /** Win card: stars, time, a big "Next" (auto-advances after 4 s idle), small Replay / Levels. */
@@ -24,6 +25,7 @@ export class WinScreen {
   onNext = () => {};
   onReplay = () => {};
   onLevels = () => {};
+  onStar = (_index: number) => {};
 
   constructor(parent: HTMLElement) {
     const card = el('div', 'card');
@@ -56,13 +58,17 @@ export class WinScreen {
     this.title.textContent = info.title;
     const t = Math.round(info.time);
     const parHit = info.time <= info.parTime;
-    this.sub.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}${parHit ? ' · under par' : ` · par ${info.parTime}s`}`;
+    const bulbs = info.bulbsEarned > 0 ? ` · +${info.bulbsEarned} ${ICONS.bulb}` : '';
+    this.sub.innerHTML = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}${parHit ? ' · under par' : ` · par ${info.parTime}s`}<span class="bulb-inline">${bulbs}</span>`;
     this.next.firstChild!.textContent = info.isLast ? 'Levels' : 'Next';
     this.levels.style.display = info.isLast ? 'none' : '';
     this.stars.forEach((s) => s.classList.remove('on', 'off-shown'));
     this.overlay.classList.add('show');
     this.stars.forEach((s, i) =>
-      setTimeout(() => s.classList.add(i < info.stars ? 'on' : 'off-shown'), 250 + i * 220),
+      setTimeout(() => {
+        s.classList.add(i < info.stars ? 'on' : 'off-shown');
+        if (i < info.stars) this.onStar(i);
+      }, 250 + i * 220),
     );
     this.autoT = info.isLast ? -1 : 0;
     this.autoBar.style.transform = 'scaleX(0)';
