@@ -14,6 +14,7 @@ export class Hud {
   private fill = el('div', 'meter-fill');
   private levelLabel = el('span');
   private pctLabel = el('span');
+  private timer = el('div', 'chip hud-timer');
   private toastEl = el('div', 'toast');
   private hand = el('div', 'hand', ICONS.hand);
   private toastTimer = 0;
@@ -32,7 +33,8 @@ export class Hud {
     label.append(this.levelLabel, this.pctLabel);
     this.meter.append(track, label);
     const right = el('div', 'hud-right');
-    right.append(this.hintBtn);
+    right.append(this.timer, this.hintBtn);
+    this.setTimer(null);
     this.root.append(left, this.meter, right);
     parent.append(this.root, this.toastEl, this.hand);
   }
@@ -47,6 +49,15 @@ export class Hud {
     this.meter.classList.toggle('glow', v >= 0.7);
   }
 
+  /** Endless countdown (null hides it). Under 10 s it turns red and pulses. */
+  setTimer(seconds: number | null) {
+    this.timer.style.display = seconds === null ? 'none' : '';
+    if (seconds === null) return;
+    const s = Math.max(0, Math.ceil(seconds));
+    this.timer.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    this.timer.classList.toggle('low', seconds < 10);
+  }
+
   setBulbs(n: number) {
     this.bulbCount.textContent = String(n);
   }
@@ -57,7 +68,7 @@ export class Hud {
   }
 
   set hintVisible(v: boolean) {
-    this.hintBtn.style.visibility = v ? 'visible' : 'hidden';
+    this.hintBtn.style.display = v ? '' : 'none';
   }
 
   /** One attention pulse on the hint button (never auto-opens the panel). */

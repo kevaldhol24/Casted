@@ -41,7 +41,8 @@ Level editor (dev only, never built): `npm run dev`, then open http://localhost:
 Load a GLB (Draco OK) or an existing level, rotate to the solution, "Set solution here", fill the form, "Save to project"
 (writes `src/data/levels/w<world>/<id>.json`, `public/masks/<id>.png`, `public/models/w<world>/<name>.glb`).
 
-Dev URL params: `?level=N` jumps to level N (1-based), `?debug=1` shows the live mask + IoU overlay.
+Dev URL params: `?level=N` jumps to level N (1-based), `?debug=1` shows the live mask + IoU overlay,
+`?mode=daily` / `?mode=endless` starts a mode, `?date=YYYY-MM-DD` (dev only) picks another Daily Shadow date.
 
 Automated checks: in dev builds `window.__casted` is the `Game` instance (`__casted.level` is the
 `LevelController`: `state`, `iou`, `solutions`, `target`). Headless Chrome via puppeteer-core works with
@@ -58,7 +59,8 @@ snap → reveal → done flow, and drag with `page.mouse` to verify input. Swift
 - `src/data/levels/w<N>/*.json` — one JSON per level (schema: `LevelDef` in `src/levels/levels.ts`)
 - `src/levels/` — `levels.ts` (schema + loads the JSON), `LevelLoader.ts` (procedural objects + GLB/Draco, lazy-loaded),
   `shapes.ts` (2D silhouettes), `junkify.ts` (procedural junk objects),
-  `LevelController.ts` (state machine: intro → playing → snapping → reveal → win)
+  `LevelController.ts` (state machine: intro → playing → snapping → reveal → win),
+  `Daily.ts` (date-seeded Daily Shadow, share text), `Endless.ts` (run timer/score, target generator)
 - `src/tools/LevelEditor.ts` + `tools/level-editor.html` — dev-only level editor; its save endpoint is a dev-server
   plugin in `vite.config.ts`
 - `src/ui/` — HTML/CSS overlay (HUD, win screen, toasts)

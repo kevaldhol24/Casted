@@ -513,3 +513,15 @@ button {
   box-shadow: inset 0 0 0 1px var(--panel-edge);
 }
 .setting select option { color: #2b1a08; }
+
+/* ---------- Modes (Daily, Endless) ---------- */
+.hud-timer { height: 48px; padding: 0 14px; font-size: 20px; border-radius: 14px; }
+.hud-timer.low { color: #ff7a5c; animation: tick 1s ease-in-out infinite; }
+@keyframes tick { 50% { transform: scale(1.08); } }
+.result-card .btn-row { flex-wrap: wrap; }
+.result-card .btn-secondary { min-width: 40%; }
+.btn-icon { display: inline-flex; vertical-align: -4px; margin-right: 6px; }
+.btn-icon svg { width: 20px; height: 20px; }
+.flame { display: inline-flex; vertical-align: -2px; color: #ff9a3c; }
+.flame svg { width: 13px; height: 13px; }
+.win-sub .flame svg { width: 16px; height: 16px; }

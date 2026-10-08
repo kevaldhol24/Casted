@@ -1,20 +1,23 @@
 import * as THREE from 'three';
 import { LevelController, SCORE_SIZE, type LevelResult } from '../levels/LevelController';
+import { dailyLevel, dailyNumber, shareText, utcDate } from '../levels/Daily';
+import { ENDLESS_CONTINUE_S, EndlessRun } from '../levels/Endless';
 import { LevelLoader } from '../levels/LevelLoader';
-import { HINTS_FROM_LEVEL, LEVELS } from '../levels/levels';
+import { HINTS_FROM_LEVEL, LEVELS, type LevelDef } from '../levels/levels';
 import { MODE_UNLOCKS, WORLDS, unlockText, type WorldDef } from '../levels/worlds';
 import type { Portal } from '../portal/Portal';
 import { MaskRenderer } from '../shadow/MaskRenderer';
 import { ATTIC, OBJECT_POS, ShadowScene } from '../shadow/ShadowScene';
 import { Album } from '../ui/Album';
 import { DebugView } from '../ui/DebugView';
-import { el } from '../ui/dom';
+import { el, ICONS } from '../ui/dom';
 import { HintPanel } from '../ui/HintPanel';
 import { Hud } from '../ui/Hud';
 import { LevelSelect } from '../ui/LevelSelect';
 import { MainMenu, type ModeTile } from '../ui/MainMenu';
 import { ObjectArrow } from '../ui/ObjectArrow';
 import { PausePanel } from '../ui/PausePanel';
+import { ResultCard } from '../ui/ResultCard';
 import { WinScreen } from '../ui/WinScreen';
 import { WorldSelect } from '../ui/WorldSelect';
 import { Tweens } from '../util/tween';
@@ -28,6 +31,9 @@ import { BULBS, HINT_COST, type HintTier, type SaveData, Store } from './Store';
 /** After using the video option on the hint panel, it stays off this long. */
 const REWARDED_COOLDOWN_S = 60;
 const NO_VIDEO = 'No video available right now — try again soon.';
+
+type Mode = 'campaign' | 'daily' | 'endless';
+const flame = (n: number) => `<span class="flame">${ICONS.flame}</span>${n}`;
 
 /**
  * Main loop and screen flow (design doc): Loading → Main menu → World / level select → Level play → Win → next.
@@ -46,6 +52,8 @@ export class Game {
   private worlds: WorldSelect;
   private album: Album;
   private win: WinScreen;
+  /** Daily result and Endless game-over card. */
+  private card: ResultCard;
   private levelSelect: LevelSelect;
   private hintPanel: HintPanel;
   private pause: PausePanel;
@@ -59,6 +67,11 @@ export class Game {
   private tier: Tier = this.autoTier;
   private elapsed = 0;
   private index = 0;
+  private mode: Mode = 'campaign';
+  private run: EndlessRun | null = null;
+  private endlessNewBest = false;
+  /** The Daily Shadow's UTC date (fixed for the session; ?date=YYYY-MM-DD in dev builds). */
+  private today = utcDate();
   private hidden = false;
   private inAd = false;
   private inMenus = false;
@@ -92,6 +105,7 @@ export class Game {
     this.worlds = new WorldSelect(ui);
     this.album = new Album(ui);
     this.win = new WinScreen(ui);
+    this.card = new ResultCard(ui);
     this.levelSelect = new LevelSelect(ui);
     this.hintPanel = new HintPanel(ui);
     this.pause = new PausePanel(ui);
@@ -130,6 +144,7 @@ export class Game {
     this.win.onReplay = () => this.transition(this.index);
     this.win.onMenu = () => this.showMenu();
     this.win.onStar = (i) => this.audio.star(i);
+    this.card.onStar = (i) => this.audio.star(i);
     this.hud.pauseBtn.addEventListener('click', () => this.openPause());
     this.hud.muteBtn.addEventListener('click', () => this.toggleMute());
     this.hud.hintBtn.addEventListener('click', () => this.openHints());
@@ -137,6 +152,8 @@ export class Game {
     this.menu.onPlay = () => this.openWorlds();
     this.menu.onMode = (key) => {
       if (key === 'album') this.album.show(WORLDS[0].name, WORLDS[0].levels, (id) => this.store.isSolved(id), ATTIC.accent);
+      else if (key === 'daily') this.openDaily();
+      else if (key === 'endless') this.startEndless();
       else this.showMenu();
     };
     this.menu.settingsBtn.addEventListener('click', () => this.pause.show(this.store.data.settings, true));
@@ -154,7 +171,11 @@ export class Game {
     };
 
     this.pause.onResume = () => this.level.resume();
-    this.pause.onRestart = () => this.play(this.index);
+    this.pause.onRestart = () => {
+      if (this.mode === 'daily') this.playDaily();
+      else if (this.mode === 'endless') this.startEndless();
+      else this.play(this.index);
+    };
     this.pause.onLevels = () => this.openLevels(WORLDS[0], 'level');
     this.pause.onMenu = () => this.showMenu();
     this.pause.onSettings = (s) => {
@@ -169,18 +190,23 @@ export class Game {
   }
 
   start() {
-    const param = Number(new URLSearchParams(location.search).get('level'));
+    const params = new URLSearchParams(location.search);
+    const param = Number(params.get('level'));
+    const date = params.get('date');
+    if (import.meta.env.DEV && date && /^\d{4}-\d{2}-\d{2}$/.test(date)) this.today = date;
     const firstUnsolved = LEVELS.findIndex((l) => !this.store.isSolved(l.id));
     const next = firstUnsolved === -1 ? 0 : firstUnsolved;
     const returning = LEVELS.some((l) => this.store.isSolved(l.id));
     const loginBulb = this.store.claimDailyLogin();
-    if (param >= 1 && param <= LEVELS.length) this.play(param - 1);
+    if (params.get('mode') === 'daily') this.playDaily();
+    else if (params.get('mode') === 'endless') this.startEndless();
+    else if (param >= 1 && param <= LEVELS.length) this.play(param - 1);
     else if (returning) {
       // Return visit: the menu, with the next level already built behind it.
       this.index = next;
       this.level.hintsEnabled = this.hintsUnlocked(next);
       this.showMenu();
-      this.load(next, true);
+      this.load(LEVELS[next], true);
     } else this.play(next);
     if (loginBulb) setTimeout(() => this.hud.toast(`+${BULBS.dailyLogin} Bulb`), 900);
     this.renderer.gl.setAnimationLoop(() => this.frame());
@@ -237,25 +263,33 @@ export class Game {
   }
 
   private play(i: number) {
-    this.inMenus = false;
+    this.enter('campaign');
     this.index = i;
-    this.win.hide();
     this.level.hintsEnabled = this.hintsUnlocked(i);
+    this.load(LEVELS[i], false);
+  }
+
+  /** Leave whatever was on screen and set up the HUD for a mode. */
+  private enter(mode: Mode) {
+    this.mode = mode;
+    this.inMenus = false;
+    this.win.hide();
+    this.card.hide();
     this.hud.setBulbs(this.store.data.bulbs);
-    this.load(i, false);
+    this.hud.setTimer(mode === 'endless' && this.run ? this.run.timeLeft : null);
   }
 
   /** Fetch/build the level's object, then start it — unless another level was requested meanwhile. */
-  private async load(i: number, suspended: boolean) {
+  private async load(level: LevelDef, suspended: boolean) {
     const token = ++this.loadToken;
-    const level = LEVELS[i];
     try {
       const obj = await this.loader.load(level);
       if (token !== this.loadToken) return obj.dispose();
       // The player may have opened the menu while a model was downloading.
       this.level.start(level, obj, suspended || this.inMenus);
+      this.updateLabel();
       this.monitor.reset();
-      this.loader.preload(LEVELS[i + 1]);
+      if (this.mode === 'campaign') this.loader.preload(LEVELS[LEVELS.indexOf(level) + 1]);
     } catch (e) {
       console.error(`[level ${level.id}] failed to load`, e);
       if (token === this.loadToken) this.hud.toast("Couldn't load this level — check your connection", 3);
@@ -283,19 +317,25 @@ export class Game {
     this.inMenus = true;
     this.level.suspend();
     this.win.hide();
+    this.card.hide();
     this.arrow.hide();
     this.hud.showHand(null);
+    this.hud.setTimer(null);
     this.hud.visible = false;
     const solved = (id: string) => this.store.isSolved(id);
-    const mode = (key: 'daily' | 'endless' | 'zen', label: string): ModeTile => {
+    const mode = (key: 'daily' | 'endless' | 'zen', label: string, note: string | null): ModeTile => {
       const u = MODE_UNLOCKS[key];
-      // Modes arrive in Phase 3: unlocked ones say so instead of opening.
-      return { key, label, note: solved(u.levelId) ? 'Coming soon' : u.text, enabled: false };
+      const open = solved(u.levelId);
+      // Zen arrives later: unlocked, it still says so instead of opening.
+      return { key, label, note: open ? (note ?? 'Coming soon') : u.text, enabled: open && note !== null };
     };
+    const streak = this.store.dailyStreak(this.today);
+    const daily = `${this.dailyDone() ? 'Solved' : `#${dailyNumber(this.today)}`}${streak ? ` · ${flame(streak)}` : ''}`;
+    const best = this.store.data.endlessBest;
     this.menu.show(this.store.data.bulbs, [
-      mode('daily', 'Daily'),
-      mode('endless', 'Endless'),
-      mode('zen', 'Zen'),
+      mode('daily', 'Daily', daily),
+      mode('endless', 'Endless', best ? `Best ${best}` : 'New'),
+      mode('zen', 'Zen', null),
       { key: 'album', label: 'Album', note: `${LEVELS.filter((l) => solved(l.id)).length} / ${LEVELS.length}`, enabled: true },
     ]);
   }
@@ -407,6 +447,8 @@ export class Game {
   }
 
   private onComplete(r: LevelResult) {
+    if (this.mode === 'daily') return this.dailyComplete(r);
+    if (this.mode === 'endless') return this.endlessSolved(r);
     const earned = this.store.recordSolve(r.level.id, r.stars, r.time);
     this.hud.setBulbs(this.store.data.bulbs);
     if (import.meta.env.DEV) console.debug('[event] level_complete', { id: r.level.id, time: r.time, stars: r.stars, hints: r.hintsUsed, peakIou: r.peakIou });
@@ -420,8 +462,166 @@ export class Game {
     });
   }
 
+  // --- Daily Shadow -------------------------------------------------------------------------------
+
+  private dailyDone() {
+    return this.store.data.daily.last?.date === this.today;
+  }
+
+  /** From the menu: today's puzzle, or today's result card if it's already solved. */
+  private openDaily() {
+    if (this.dailyDone()) this.showDailyResult(0);
+    else this.playDaily();
+  }
+
+  private playDaily() {
+    this.enter('daily');
+    this.level.hintsEnabled = this.store.isSolved(LEVELS[HINTS_FROM_LEVEL - 2].id);
+    this.load(dailyLevel(this.today), false);
+  }
+
+  private dailyComplete(r: LevelResult) {
+    const earned = this.store.recordDaily(this.today, r.stars, r.time, r.hintsUsed);
+    this.hud.setBulbs(this.store.data.bulbs);
+    if (import.meta.env.DEV) console.debug('[event] daily_complete', { date: this.today, time: r.time, stars: r.stars, hints: r.hintsUsed });
+    this.showDailyResult(earned);
+  }
+
+  private showDailyResult(earned: number) {
+    const res = this.store.data.daily.last!;
+    const t = Math.round(res.time);
+    const hints = res.hints === 0 ? 'no hints' : res.hints === 1 ? '1 hint' : `${res.hints} hints`;
+    const streak = this.store.dailyStreak(this.today);
+    const bulbs = earned > 0 ? ` · +${earned} <span class="bulb-inline">${ICONS.bulb}</span>` : '';
+    const shields = this.store.data.daily.shields;
+    const adReady = this.portal.rewardedAvailable() && performance.now() >= this.rewardedReadyAt;
+    this.card.show({
+      title: `Daily #${dailyNumber(this.today)} · ${dailyLevel(this.today).targetName}`,
+      stars: res.stars,
+      lines: [
+        `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')} · ${hints}`,
+        `${flame(streak)} day streak${shields ? ` · ${shields} shield${shields > 1 ? 's' : ''}` : ''}${bulbs}`,
+      ],
+      buttons: [
+        { label: 'Share', primary: true, onClick: () => this.shareDaily() },
+        ...(res.stars < 3 && !res.retried
+          ? [{ label: 'Try for 3 stars', video: true, disabled: !adReady, onClick: () => this.retryDaily() }]
+          : []),
+        ...(!res.doubled ? [{ label: `+${BULBS.dailySolve} Bulbs`, video: true, disabled: !adReady, onClick: () => this.doubleDaily() }] : []),
+        { label: 'Menu', onClick: () => this.showMenu() },
+      ],
+    });
+  }
+
+  private async shareDaily() {
+    const res = this.store.data.daily.last!;
+    const text = shareText(this.today, res.stars, res.time, res.hints, location.origin + location.pathname);
+    if (import.meta.env.DEV) console.debug('[event] daily_share', { date: this.today });
+    this.hud.toast((await copyText(text)) ? 'Copied — paste it anywhere' : "Couldn't copy", 2);
+  }
+
+  /** Rewarded "second attempt at 3 stars": once per day; the better result is kept. */
+  private async retryDaily() {
+    this.card.hide();
+    if (await this.rewarded()) {
+      this.store.data.daily.last!.retried = true;
+      this.store.save();
+      this.playDaily();
+    } else this.showDailyResult(0);
+  }
+
+  /** Rewarded "double reward": the base Bulbs were already paid. */
+  private async doubleDaily() {
+    this.card.hide();
+    if (await this.rewarded()) {
+      this.store.data.daily.last!.doubled = true;
+      this.store.addBulbs(BULBS.dailySolve);
+      this.hud.setBulbs(this.store.data.bulbs);
+      this.hud.toast(`+${BULBS.dailySolve} Bulbs`);
+    }
+    this.showDailyResult(0);
+  }
+
+  // --- Endless ------------------------------------------------------------------------------------
+
+  private startEndless() {
+    this.run = new EndlessRun();
+    this.enter('endless');
+    this.level.hintsEnabled = false;
+    this.load(this.run.nextTarget(), false);
+  }
+
+  private endlessSolved(r: LevelResult) {
+    const run = this.run!;
+    const g = run.recordSolve(r.time);
+    this.hud.toast(`+${g.points}${g.mult > 1 ? ` (×${g.mult})` : ''} · +${g.bonus}s`);
+    this.hud.setTimer(run.timeLeft);
+    this.load(run.nextTarget(), false);
+  }
+
+  /** Called every frame in Endless: the timer runs only while the player can actually turn the object. */
+  private tickEndless(dt: number) {
+    const run = this.run;
+    if (!run || !this.level.running || this.card.open || this.inAd) return;
+    run.timeLeft = Math.max(0, run.timeLeft - dt);
+    this.hud.setTimer(run.timeLeft);
+    if (run.timeLeft <= 0) this.endlessOver();
+  }
+
+  private endlessOver() {
+    const run = this.run!;
+    this.level.suspend();
+    this.arrow.hide();
+    this.hud.showHand(null);
+    this.endlessNewBest = this.store.recordEndless(run.score);
+    if (import.meta.env.DEV) console.debug('[event] endless_over', { score: run.score, solved: run.solved, continued: run.continued });
+    this.showEndlessOver();
+  }
+
+  private showEndlessOver() {
+    const run = this.run!;
+    const adReady = this.portal.rewardedAvailable() && performance.now() >= this.rewardedReadyAt;
+    this.card.show({
+      title: "Time's up",
+      lines: [
+        `${run.score} points · ${run.solved} shadow${run.solved === 1 ? '' : 's'}`,
+        this.endlessNewBest ? 'New best!' : `Best ${this.store.data.endlessBest}`,
+      ],
+      buttons: [
+        { label: 'Play again', primary: true, onClick: () => this.endlessAgain() },
+        ...(!run.continued ? [{ label: `+${ENDLESS_CONTINUE_S}s`, video: true, disabled: !adReady, onClick: () => this.endlessContinue() }] : []),
+        { label: 'Menu', onClick: () => this.showMenu() },
+      ],
+    });
+  }
+
+  /** Rewarded continue, once per run, offered only on the game-over card. */
+  private async endlessContinue() {
+    this.card.hide();
+    const run = this.run!;
+    if (await this.rewarded()) {
+      run.continued = true;
+      run.timeLeft = ENDLESS_CONTINUE_S;
+      this.hud.setTimer(run.timeLeft);
+      this.level.resume();
+    } else this.showEndlessOver();
+  }
+
+  /** "Play again" requests a midgame, unless the player already watched a continue this run. */
+  private async endlessAgain() {
+    this.card.hide();
+    if (!this.run?.continued) await this.runAd(() => this.portal.midgame({ onStart: () => this.audio.setAdMuted(true) }));
+    this.startEndless();
+  }
+
+  /** The HUD's level label: "1-4" in the campaign, the Daily number, or the Endless score. */
+  private updateLabel() {
+    if (this.mode === 'daily') this.hud.setLevel(`Daily #${dailyNumber(this.today)}`);
+    else if (this.mode === 'endless' && this.run) this.hud.setLevel(`${this.run.score} pts${this.run.mult > 1 ? ` ×${this.run.mult}` : ''}`);
+  }
+
   private onKey(code: string) {
-    if (this.inAd || this.inMenus) return;
+    if (this.inAd || this.inMenus || this.card.open) return;
     if (code === 'Escape' || code === 'KeyP') {
       if (this.levelSelect.open) {
         this.levelSelect.hide();
@@ -439,7 +639,7 @@ export class Game {
   private setHidden(h: boolean) {
     if (h === this.hidden) return;
     this.hidden = h;
-    const menuOpen = this.inMenus || this.levelSelect.open || this.pause.open || this.hintPanel.open || this.inAd;
+    const menuOpen = this.inMenus || this.card.open || this.levelSelect.open || this.pause.open || this.hintPanel.open || this.inAd;
     if (h) this.level.suspend();
     else if (!menuOpen) this.level.resume();
   }
@@ -464,11 +664,29 @@ export class Game {
     this.elapsed += dt;
     this.tweens.update(dt);
     this.level.update(dt);
+    if (this.mode === 'endless') this.tickEndless(dt);
     this.win.update(dt);
     this.scene.update(dt, this.elapsed);
     // Behind the menus the object turns slowly, as a teaser.
     if (this.inMenus) this.scene.objectRoot.rotateY(dt * 0.35);
     this.placeArrow();
     this.renderer.render(this.scene.scene, dt);
+  }
+}
+
+/** Clipboard API first; the old textarea + execCommand path for insecure contexts and older WebViews. */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.append(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
   }
 }

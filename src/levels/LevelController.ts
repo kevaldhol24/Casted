@@ -109,6 +109,11 @@ export class LevelController {
     return this.state === 'playing';
   }
 
+  /** Playing and not paused: the clock is running (Endless drains its timer only then). */
+  get running() {
+    return this.state === 'playing' && !this.suspended;
+  }
+
   start(level: LevelDef, object: LevelObjectInstance, suspended = false) {
     const { scene, mask, arcball, hud, tweens, arrow } = this.c;
     tweens.clear();
