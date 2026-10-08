@@ -1,8 +1,21 @@
+import { daysBetween } from '../levels/Daily';
 import type { QualitySetting } from './Quality';
 
 export interface LevelRecord {
   stars: number;
   bestTime: number;
+}
+
+/** The latest Daily Shadow played, for the result card and share text. */
+export interface DailyResult {
+  date: string;
+  stars: number;
+  time: number;
+  hints: number;
+  /** The rewarded "second attempt at 3 stars" was used. */
+  retried: boolean;
+  /** The rewarded "double reward" was used. */
+  doubled: boolean;
 }
 
 export interface SaveData {
@@ -13,6 +26,16 @@ export interface SaveData {
   freeHintUsed: boolean;
   /** UTC date (YYYY-MM-DD) of the last daily-login Bulb. */
   lastLogin: string;
+  daily: {
+    /** UTC date of the last solved Daily Shadow. */
+    lastSolved: string;
+    streak: number;
+    bestStreak: number;
+    /** Each one covers a missed day; one is earned every 7 streak days. */
+    shields: number;
+    last: DailyResult | null;
+  };
+  endlessBest: number;
   settings: {
     sensitivity: number;
     reduceMotion: boolean;
@@ -31,11 +54,15 @@ export const defaultSave = (): SaveData => ({
   bulbs: 3,
   freeHintUsed: false,
   lastLogin: '',
+  daily: { lastSolved: '', streak: 0, bestStreak: 0, shields: 0, last: null },
+  endlessBest: 0,
   settings: { sensitivity: 1, reduceMotion: false, muted: false, music: 0.7, sfx: 0.8, quality: 'auto' },
 });
 
 /** Bulb rewards from the design doc's economy table. */
-export const BULBS = { firstSolve: 1, threeStarBonus: 1, rewardedAd: 2, dailyLogin: 1 } as const;
+export const BULBS = { firstSolve: 1, threeStarBonus: 1, rewardedAd: 2, dailyLogin: 1, dailySolve: 2 } as const;
+const MAX_SHIELDS = 3;
+const SHIELD_EVERY = 7;
 export const HINT_COST = { nudge: 1, peek: 2, reveal: 3 } as const;
 export type HintTier = keyof typeof HINT_COST;
 
@@ -58,6 +85,7 @@ export class Store {
         ...d,
         ...parsed,
         levels: { ...(parsed.levels ?? {}) },
+        daily: { ...d.daily, ...(parsed.daily ?? {}) },
         settings: { ...d.settings, ...(parsed.settings ?? {}) },
       } as SaveData;
     } catch {
@@ -83,6 +111,50 @@ export class Store {
     this.data.bulbs += earned;
     this.save();
     return earned;
+  }
+
+  /**
+   * Records a Daily Shadow solve. The first solve of a date pays Bulbs and moves the streak: +1 after
+   * yesterday, shields cover missed days, otherwise it restarts at 1. A replay of the same date (the rewarded
+   * retry) only keeps the better stars and time. Returns the Bulbs earned.
+   */
+  recordDaily(date: string, stars: number, time: number, hints: number): number {
+    const d = this.data.daily;
+    if (d.last?.date === date) {
+      if (stars > d.last.stars || (stars === d.last.stars && time < d.last.time)) Object.assign(d.last, { stars, time, hints });
+      this.save();
+      return 0;
+    }
+    const missed = d.lastSolved ? daysBetween(d.lastSolved, date) - 1 : Infinity;
+    // missed < 0 only if the clock went backwards: keep the streak as it is.
+    if (missed < 0) d.streak = Math.max(1, d.streak);
+    else if (missed <= d.shields) {
+      d.shields -= missed;
+      d.streak++;
+    } else d.streak = 1;
+    if (missed >= 0 && d.streak % SHIELD_EVERY === 0) d.shields = Math.min(MAX_SHIELDS, d.shields + 1);
+    d.bestStreak = Math.max(d.bestStreak, d.streak);
+    d.lastSolved = date;
+    d.last = { date, stars, time, hints, retried: false, doubled: false };
+    this.data.bulbs += BULBS.dailySolve;
+    this.save();
+    return BULBS.dailySolve;
+  }
+
+  /** The streak as it stands today: 0 once more days were missed than shields can cover. */
+  dailyStreak(today: string): number {
+    const d = this.data.daily;
+    if (!d.lastSolved) return 0;
+    const missed = daysBetween(d.lastSolved, today) - 1;
+    return missed <= d.shields ? d.streak : 0;
+  }
+
+  /** Saves the run's score if it's a new best. Returns true for a new best. */
+  recordEndless(score: number): boolean {
+    if (score <= this.data.endlessBest) return false;
+    this.data.endlessBest = score;
+    this.save();
+    return true;
   }
 
   /** +1 Bulb once per UTC day. Returns true when granted. */
