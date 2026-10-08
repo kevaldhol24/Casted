@@ -1,0 +1,17 @@
+{
+  "id": "w1-01",
+  "world": 1,
+  "targetName": "Heart",
+  "object": {
+    "kind": "procedural",
+    "silhouette": "heart",
+    "seed": 101,
+    "junk": 0.6
+  },
+  "freeAxes": ["y"],
+  "startOffset": [0, 90, 0],
+  "threshold": 0.9,
+  "parTime": 10,
+  "allowMirror": true,
+  "reveal": "pulse"
+}

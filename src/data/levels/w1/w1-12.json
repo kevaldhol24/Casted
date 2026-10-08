@@ -1,0 +1,17 @@
+{
+  "id": "w1-12",
+  "world": 1,
+  "targetName": "Rabbit",
+  "object": {
+    "kind": "procedural",
+    "silhouette": "rabbit",
+    "seed": 1212,
+    "junk": 1.6
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [75, 130, -40],
+  "threshold": 0.9,
+  "parTime": 55,
+  "allowMirror": false,
+  "reveal": "hop"
+}

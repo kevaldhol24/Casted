@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { LevelController, SCORE_SIZE, type LevelResult } from '../levels/LevelController';
+import { LevelLoader } from '../levels/LevelLoader';
 import { HINTS_FROM_LEVEL, LEVELS } from '../levels/levels';
 import { MODE_UNLOCKS, WORLDS, unlockText, type WorldDef } from '../levels/worlds';
 import type { Portal } from '../portal/Portal';
@@ -36,6 +37,9 @@ export class Game {
   private renderer: Renderer;
   private scene: ShadowScene;
   private level: LevelController;
+  private loader = new LevelLoader(ATTIC.objects);
+  /** Bumped per level request, so a slow model load can't replace a level picked after it. */
+  private loadToken = 0;
   private hud: Hud;
   private arrow: ObjectArrow;
   private menu: MainMenu;
@@ -112,7 +116,6 @@ export class Game {
       audio: this.audio,
       tweens: this.tweens,
       portal,
-      palette: ATTIC,
       debug,
     });
     this.level.onComplete = (r) => this.onComplete(r);
@@ -176,8 +179,8 @@ export class Game {
       // Return visit: the menu, with the next level already built behind it.
       this.index = next;
       this.level.hintsEnabled = this.hintsUnlocked(next);
-      this.level.start(LEVELS[next], true);
       this.showMenu();
+      this.load(next, true);
     } else this.play(next);
     if (loginBulb) setTimeout(() => this.hud.toast(`+${BULBS.dailyLogin} Bulb`), 900);
     this.renderer.gl.setAnimationLoop(() => this.frame());
@@ -239,8 +242,24 @@ export class Game {
     this.win.hide();
     this.level.hintsEnabled = this.hintsUnlocked(i);
     this.hud.setBulbs(this.store.data.bulbs);
-    this.level.start(LEVELS[i]);
-    this.monitor.reset();
+    this.load(i, false);
+  }
+
+  /** Fetch/build the level's object, then start it — unless another level was requested meanwhile. */
+  private async load(i: number, suspended: boolean) {
+    const token = ++this.loadToken;
+    const level = LEVELS[i];
+    try {
+      const obj = await this.loader.load(level);
+      if (token !== this.loadToken) return obj.dispose();
+      // The player may have opened the menu while a model was downloading.
+      this.level.start(level, obj, suspended || this.inMenus);
+      this.monitor.reset();
+      this.loader.preload(LEVELS[i + 1]);
+    } catch (e) {
+      console.error(`[level ${level.id}] failed to load`, e);
+      if (token === this.loadToken) this.hud.toast("Couldn't load this level — check your connection", 3);
+    }
   }
 
   /**

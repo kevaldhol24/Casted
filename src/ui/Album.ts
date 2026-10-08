@@ -38,7 +38,7 @@ export class Album {
     for (const l of levels) {
       const cell = el('div', 'album-cell');
       if (solved(l.id)) {
-        cell.append(drawSilhouette(l.silhouette, 96, color));
+        cell.append(l.object.kind === 'procedural' ? drawSilhouette(l.object.silhouette, 96, color) : maskImage(l, 96, color));
         cell.append(el('span', 'album-name', l.targetName));
       } else {
         cell.classList.add('unknown');
@@ -52,6 +52,18 @@ export class Album {
   hide() {
     this.overlay.classList.remove('show');
   }
+}
+
+/** Model levels: the editor's exported mask PNG (shape opaque, background transparent), tinted with the accent through a CSS mask. */
+function maskImage(level: LevelDef, size: number, color: string): HTMLElement {
+  const div = document.createElement('div');
+  div.style.width = div.style.height = `${size}px`;
+  if (!level.mask) return div;
+  const url = `url("${import.meta.env.BASE_URL}${level.mask}")`;
+  div.style.background = color;
+  div.style.maskImage = div.style.webkitMaskImage = url;
+  div.style.maskSize = div.style.webkitMaskSize = 'contain';
+  return div;
 }
 
 function drawSilhouette(key: string, size: number, color: string): HTMLCanvasElement {

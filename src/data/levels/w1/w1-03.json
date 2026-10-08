@@ -1,0 +1,17 @@
+{
+  "id": "w1-03",
+  "world": 1,
+  "targetName": "House",
+  "object": {
+    "kind": "procedural",
+    "silhouette": "house",
+    "seed": 303,
+    "junk": 1
+  },
+  "freeAxes": ["x"],
+  "startOffset": [118, 0, 0],
+  "threshold": 0.9,
+  "parTime": 20,
+  "allowMirror": false,
+  "reveal": "stomp"
+}

@@ -1,0 +1,17 @@
+{
+  "id": "w1-15",
+  "world": 1,
+  "targetName": "Elephant",
+  "object": {
+    "kind": "procedural",
+    "silhouette": "elephant",
+    "seed": 1515,
+    "junk": 1.9
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [-105, 140, 55],
+  "threshold": 0.92,
+  "parTime": 90,
+  "allowMirror": false,
+  "reveal": "stomp"
+}
