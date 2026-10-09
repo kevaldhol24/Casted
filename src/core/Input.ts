@@ -104,12 +104,20 @@ export class Input {
 
   /** Held-key rotation direction, in units of "full speed" per axis. */
   keyAxes(): RotateIntent {
-    const k = this.keys;
-    const has = (...codes: string[]) => codes.some((c) => k.has(c));
-    return {
-      yaw: (has('KeyD', 'ArrowRight') ? 1 : 0) - (has('KeyA', 'ArrowLeft') ? 1 : 0),
-      pitch: (has('KeyS', 'ArrowDown') ? 1 : 0) - (has('KeyW', 'ArrowUp') ? 1 : 0),
-      roll: (has('KeyQ') ? 1 : 0) - (has('KeyE') ? 1 : 0),
-    };
+    return { ...this.wasdAxes(), yaw: this.axis('KeyD', 'ArrowRight') - this.axis('KeyA', 'ArrowLeft'), pitch: this.axis('KeyS', 'ArrowDown') - this.axis('KeyW', 'ArrowUp') };
+  }
+
+  /** WASD + Q/E only (light-control levels keep the arrow keys for the lamp). */
+  wasdAxes(): RotateIntent {
+    return { yaw: this.axis('KeyD') - this.axis('KeyA'), pitch: this.axis('KeyS') - this.axis('KeyW'), roll: this.axis('KeyQ') - this.axis('KeyE') };
+  }
+
+  /** Arrow keys only: x right, y down. */
+  arrowAxes() {
+    return { x: this.axis('ArrowRight') - this.axis('ArrowLeft'), y: this.axis('ArrowDown') - this.axis('ArrowUp') };
+  }
+
+  private axis(...codes: string[]) {
+    return codes.some((c) => this.keys.has(c)) ? 1 : 0;
   }
 }

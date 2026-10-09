@@ -1,0 +1,20 @@
+{
+  "id": "w3-11",
+  "world": 3,
+  "targetName": "Crab",
+  "object": {
+    "kind": "model",
+    "url": "models/w3/crab_junk.glb"
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [-100, -95, 65],
+  "light": {
+    "solution": [11, -2],
+    "start": [-9, 8]
+  },
+  "threshold": 0.75,
+  "parTime": 65,
+  "allowMirror": false,
+  "reveal": "strum",
+  "mask": "masks/w3-11.png"
+}

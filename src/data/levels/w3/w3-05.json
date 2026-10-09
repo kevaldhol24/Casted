@@ -1,0 +1,20 @@
+{
+  "id": "w3-05",
+  "world": 3,
+  "targetName": "Dragonfly",
+  "object": {
+    "kind": "model",
+    "url": "models/w3/dragonfly_junk.glb"
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [-90, 100, 50],
+  "light": {
+    "solution": [-6, 3],
+    "start": [9, -3]
+  },
+  "threshold": 0.75,
+  "parTime": 50,
+  "allowMirror": false,
+  "reveal": "flap",
+  "mask": "masks/w3-05.png"
+}

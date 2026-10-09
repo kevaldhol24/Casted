@@ -1,0 +1,32 @@
+{
+  "id": "w2-06",
+  "world": 2,
+  "targetName": "Cupcake",
+  "pieces": [
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/cupcake_top_junk.glb"
+      },
+      "offset": [0, 0.4979, 0.7237],
+      "scale": 0.6989,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [-90, 85, 40]
+    },
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/cupcake_case_junk.glb"
+      },
+      "offset": [0, -0.5031, -0.7237],
+      "scale": 0.6282,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [85, -100, -35]
+    }
+  ],
+  "threshold": 0.9,
+  "parTime": 60,
+  "allowMirror": false,
+  "reveal": "stomp",
+  "mask": "masks/w2-06.png"
+}

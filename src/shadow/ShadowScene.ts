@@ -10,6 +10,29 @@ const GHOST_OPACITY = 0.15;
 export const OBJECT_POS = new THREE.Vector3(0, -0.85, 1.2);
 /** Direction the light travels: from a lamp low and in front, up onto the wall, slightly offset to the right. */
 export const LIGHT_DIR = new THREE.Vector3(0.1, 0.5, -1).normalize();
+/**
+ * How far the lamp can move from the default light (World 3 light control), degrees: yaw each way, pitch up and
+ * down. Small on purpose: scoring is on the wall, 3.8 units behind the object, where a degree slides the shadow
+ * about 0.07 units, so the lamp mostly moves the shadow onto the outline. Down is shorter: a low lamp throws the
+ * shadow up the wall, out of view.
+ */
+export const LIGHT_RANGE = { yaw: 15, up: 12, down: 8 };
+
+/** Lamp degrees → lamp pad position (x right, y up; the pad's edge is the unit circle). */
+export const lampToPad = (yaw: number, pitch: number) => ({ x: yaw / LIGHT_RANGE.yaw, y: pitch / (pitch >= 0 ? LIGHT_RANGE.up : LIGHT_RANGE.down) });
+/** Lamp pad position → lamp degrees. */
+export const padToLamp = (x: number, y: number) => ({ yaw: x * LIGHT_RANGE.yaw, pitch: y * (y >= 0 ? LIGHT_RANGE.up : LIGHT_RANGE.down) });
+
+/**
+ * Light direction with the lamp moved `yaw` degrees right and `pitch` degrees up from the default, on a hemisphere
+ * around the object (spherical angles of the lamp as seen from the object).
+ */
+export function lightDirection(yaw: number, pitch: number, out = new THREE.Vector3()): THREE.Vector3 {
+  const az = Math.atan2(-LIGHT_DIR.x, -LIGHT_DIR.z) + THREE.MathUtils.degToRad(yaw);
+  const el = Math.asin(-LIGHT_DIR.y) + THREE.MathUtils.degToRad(pitch);
+  // Lamp direction from the object, then flipped: the light travels from the lamp towards the object.
+  return out.set(-Math.sin(az) * Math.cos(el), -Math.sin(el), -Math.cos(az) * Math.cos(el));
+}
 
 export interface WorldPalette {
   background: string;
@@ -18,8 +41,8 @@ export interface WorldPalette {
   light: string;
   accent: string;
   objects: string[];
-  /** Wall surface: Attic plaster or Kitchen tiles (both generated normal maps, no download). */
-  wallPattern: 'plaster' | 'tiles';
+  /** Wall surface: Attic plaster, Kitchen tiles or Workshop pegboard (generated normal maps, no download). */
+  wallPattern: 'plaster' | 'tiles' | 'pegboard';
   skirting: string;
 }
 
@@ -47,8 +70,20 @@ export const KITCHEN: WorldPalette = {
   skirting: '#a3998a',
 };
 
+/** World 3 — The Workshop: dark teal, yellow lamp, orange accent, pegboard wall. */
+export const WORKSHOP: WorldPalette = {
+  background: '#163a3a',
+  wall: '#cdb58f',
+  floor: '#56605d',
+  light: '#ffe49a',
+  accent: '#f08a3c',
+  objects: ['#c9b48f', '#9fa8a3', '#b98c5f', '#8c9a96'],
+  wallPattern: 'pegboard',
+  skirting: '#24504f',
+};
+
 /** Palette per world number; worlds without their own palette use the Attic's. */
-export const WORLD_PALETTES: Record<number, WorldPalette> = { 1: ATTIC, 2: KITCHEN };
+export const WORLD_PALETTES: Record<number, WorldPalette> = { 1: ATTIC, 2: KITCHEN, 3: WORKSHOP };
 export const paletteFor = (world: number) => WORLD_PALETTES[world] ?? ATTIC;
 
 const outlineVert = /* glsl */ `
@@ -159,6 +194,9 @@ const outlineFrag = /* glsl */ `
 export class ShadowScene {
   readonly scene = new THREE.Scene();
   readonly light: THREE.DirectionalLight;
+  /** Where the light travels now (the lamp moves in World 3), and the direction the target was cast along. */
+  readonly lightDir = LIGHT_DIR.clone();
+  readonly targetDir = LIGHT_DIR.clone();
   readonly objectRoot = new THREE.Group();
   /** The level's objects. A single object sits directly in objectRoot (it is the pivot); assembly pieces get their own. */
   private pieces: { pivot: THREE.Object3D; obj: LevelObjectInstance; mats: THREE.MeshStandardMaterial[]; ghost: number; opacity: number }[] = [];
@@ -260,9 +298,10 @@ export class ShadowScene {
   private wallMap(pattern: WorldPalette['wallPattern']): THREE.DataTexture {
     let t = this.wallMaps.get(pattern);
     if (!t) {
-      t = pattern === 'tiles' ? tileNormalMap(128, 4) : plasterNormalMap(128, 7);
-      // Plaster tiles every 2.5 units; a tile texture holds 4×4 tiles of 0.6 units.
+      t = pattern === 'tiles' ? tileNormalMap(128, 4) : pattern === 'pegboard' ? pegboardNormalMap(128, 4) : plasterNormalMap(128, 7);
+      // Plaster tiles every 2.5 units; a tile texture holds 4×4 tiles of 0.6 units; pegboard 4×4 holes 0.25 apart.
       if (pattern === 'tiles') t.repeat.set(30 / 2.4, 16 / 2.4);
+      else if (pattern === 'pegboard') t.repeat.set(30 / 1, 16 / 1);
       else t.repeat.set(12, 6.4);
       this.wallMaps.set(pattern, t);
     }
@@ -287,6 +326,12 @@ export class ShadowScene {
 
   get accent() {
     return this.palette.accent;
+  }
+
+  /** Move the lamp: the visible light (and its shadow) now travels along `dir`. */
+  setLightDir(dir: THREE.Vector3) {
+    this.lightDir.copy(dir);
+    this.light.position.copy(OBJECT_POS).addScaledVector(dir, -12);
   }
 
   /** Swap in a level's object; the previous objects are removed and disposed. */
@@ -368,10 +413,11 @@ export class ShadowScene {
   }
 
   /**
-   * Place the outline quad: the mask camera's square, projected along the light onto the wall.
+   * Place the outline quad: the mask camera's square, projected along the solution light `dir` onto the wall.
    * Its UVs match the mask texture exactly, so the outline sits where the solved shadow lands.
    */
-  placeOutline(maskCam: THREE.OrthographicCamera, halfSize: number, maskTexture: THREE.Texture) {
+  placeOutline(maskCam: THREE.OrthographicCamera, halfSize: number, maskTexture: THREE.Texture, dir: THREE.Vector3 = LIGHT_DIR) {
+    this.targetDir.copy(dir);
     const right = new THREE.Vector3().setFromMatrixColumn(maskCam.matrixWorld, 0);
     const up = new THREE.Vector3().setFromMatrixColumn(maskCam.matrixWorld, 1);
     const center = OBJECT_POS;
@@ -382,8 +428,8 @@ export class ShadowScene {
         .clone()
         .addScaledVector(right, (u * 2 - 1) * halfSize)
         .addScaledVector(up, (v * 2 - 1) * halfSize);
-      const t = (WALL_Z + 0.004 - p.z) / LIGHT_DIR.z;
-      p.addScaledVector(LIGHT_DIR, t);
+      const t = (WALL_Z + 0.004 - p.z) / dir.z;
+      p.addScaledVector(dir, t);
       corners.push(p.x, p.y, p.z);
       uvs.push(u, v);
     }
@@ -400,8 +446,8 @@ export class ShadowScene {
 
   /** Centre of the solved shadow on the wall. */
   shadowCenter(): THREE.Vector3 {
-    const t = (WALL_Z - OBJECT_POS.z) / LIGHT_DIR.z;
-    return OBJECT_POS.clone().addScaledVector(LIGHT_DIR, t);
+    const t = (WALL_Z - OBJECT_POS.z) / this.targetDir.z;
+    return OBJECT_POS.clone().addScaledVector(this.targetDir, t);
   }
 
   set glow(v: number) {
@@ -525,6 +571,40 @@ function tileNormalMap(size: number, tiles: number): THREE.DataTexture {
   for (let y = 0; y < size; y++)
     for (let x = 0; x < size; x++) {
       n.set((h(x - 1, y) - h(x + 1, y)) * 1.6, (h(x, y - 1) - h(x, y + 1)) * 1.6, 1).normalize();
+      const i = (y * size + x) * 4;
+      data[i] = (n.x * 0.5 + 0.5) * 255;
+      data[i + 1] = (n.y * 0.5 + 0.5) * 255;
+      data[i + 2] = (n.z * 0.5 + 0.5) * 255;
+      data[i + 3] = 255;
+    }
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.generateMipmaps = true;
+  tex.anisotropy = 4;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+/** Workshop pegboard: a grid of round holes (`holes` × `holes` per texture), each a soft dip. */
+function pegboardNormalMap(size: number, holes: number): THREE.DataTexture {
+  const height = new Float32Array(size * size);
+  const cell = size / holes;
+  const r = cell * 0.17;
+  for (let y = 0; y < size; y++)
+    for (let x = 0; x < size; x++) {
+      const dx = (x % cell) - cell / 2 + 0.5;
+      const dy = (y % cell) - cell / 2 + 0.5;
+      const d = Math.hypot(dx, dy);
+      height[y * size + x] = d < r ? 0 : Math.min(1, (d - r) / 2.5);
+    }
+  const data = new Uint8Array(size * size * 4);
+  const h = (x: number, y: number) => height[((y + size) % size) * size + ((x + size) % size)];
+  const n = new THREE.Vector3();
+  for (let y = 0; y < size; y++)
+    for (let x = 0; x < size; x++) {
+      n.set((h(x - 1, y) - h(x + 1, y)) * 2, (h(x, y - 1) - h(x, y + 1)) * 2, 1).normalize();
       const i = (y * size + x) * 4;
       data[i] = (n.x * 0.5 + 0.5) * 255;
       data[i + 1] = (n.y * 0.5 + 0.5) * 255;

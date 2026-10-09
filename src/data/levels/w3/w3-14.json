@@ -1,0 +1,20 @@
+{
+  "id": "w3-14",
+  "world": 3,
+  "targetName": "Bat",
+  "object": {
+    "kind": "model",
+    "url": "models/w3/bat_junk.glb"
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [110, 85, -65],
+  "light": {
+    "solution": [-12, -3],
+    "start": [9, 8]
+  },
+  "threshold": 0.75,
+  "parTime": 75,
+  "allowMirror": false,
+  "reveal": "flap",
+  "mask": "masks/w3-14.png"
+}

@@ -23,6 +23,9 @@ export const C = {
   blue: '#6f7f99',
   cream: '#d8c8a8',
   green: '#7f8a62',
+  // Workshop tools and paint
+  orange: '#b8713a',
+  teal: '#5f7f7c',
 };
 
 /** Mulberry32 (same as src/util/rng.ts): a model rebuilds identically from its seed. */
@@ -293,8 +296,10 @@ export class Model {
     const tris = [];
     for (const s of shapes) {
       const { shape, holes } = s.extractPoints(16);
+      // triangulateShape drops duplicated end points in place, so index the points only after it has run.
+      const faces = THREE.ShapeUtils.triangulateShape(shape, holes);
       const pts = shape.concat(...holes);
-      for (const [a, b, c] of THREE.ShapeUtils.triangulateShape(shape, holes)) refine(pts[a], pts[b], pts[c], 0.16, tris);
+      for (const [a, b, c] of faces) refine(pts[a], pts[b], pts[c], 0.16, tris);
     }
     // Voronoi-style pieces: each triangle joins the nearest of `pieces` seeds (seeded inside the outline).
     const seeds = [];

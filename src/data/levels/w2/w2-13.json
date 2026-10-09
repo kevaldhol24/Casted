@@ -1,0 +1,42 @@
+{
+  "id": "w2-13",
+  "world": 2,
+  "targetName": "Giraffe",
+  "pieces": [
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/giraffe_neck_junk.glb"
+      },
+      "offset": [0.6412, 0.5495, 1.6634],
+      "scale": 0.5395,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [-100, -85, 55]
+    },
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/giraffe_body_junk.glb"
+      },
+      "offset": [-0.1599, -0.158, 0.1733],
+      "scale": 0.8434,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [95, 90, -50]
+    },
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/giraffe_legs_junk.glb"
+      },
+      "offset": [-0.0759, -0.6395, -1.6634],
+      "scale": 0.59,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [-85, 105, 40]
+    }
+  ],
+  "threshold": 0.9,
+  "parTime": 95,
+  "allowMirror": false,
+  "reveal": "sway",
+  "mask": "masks/w2-13.png"
+}

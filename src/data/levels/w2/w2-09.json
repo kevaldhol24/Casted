@@ -1,0 +1,32 @@
+{
+  "id": "w2-09",
+  "world": 2,
+  "targetName": "Windmill",
+  "pieces": [
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/windmill_sails_junk.glb"
+      },
+      "offset": [0, 0.1385, 1.0567],
+      "scale": 0.8744,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [105, -95, 55]
+    },
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/windmill_tower_junk.glb"
+      },
+      "offset": [0, -0.4041, -1.0567],
+      "scale": 0.7711,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [-85, 90, -60]
+    }
+  ],
+  "threshold": 0.9,
+  "parTime": 75,
+  "allowMirror": false,
+  "reveal": "spin",
+  "mask": "masks/w2-09.png"
+}

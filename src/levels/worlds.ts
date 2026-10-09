@@ -11,11 +11,11 @@ export interface WorldDef {
   levels: LevelDef[];
 }
 
-/** Launch worlds. The Attic and The Kitchen have levels; the rest show their unlock rule and "Coming soon". */
+/** Launch worlds. The Attic, Kitchen and Workshop have levels; the rest show their unlock rule and "Coming soon". */
 export const WORLDS: WorldDef[] = [
   { id: 1, name: 'The Attic', colors: ['#5a4232', '#f2a43a'], unlock: { kind: 'start' }, levels: LEVELS.filter((l) => l.world === 1) },
   { id: 2, name: 'The Kitchen', colors: ['#d9cfb8', '#5fc9a4'], unlock: { kind: 'world', world: 1 }, levels: LEVELS.filter((l) => l.world === 2) },
-  { id: 3, name: 'The Workshop', colors: ['#1f4a4a', '#f08a3c'], unlock: { kind: 'stars', stars: 25 }, levels: [] },
+  { id: 3, name: 'The Workshop', colors: ['#1f4a4a', '#f08a3c'], unlock: { kind: 'stars', stars: 25 }, levels: LEVELS.filter((l) => l.world === 3) },
   { id: 4, name: 'The Theatre', colors: ['#5a1820', '#e8c25a'], unlock: { kind: 'stars', stars: 55 }, levels: [] },
 ];
 

@@ -1,0 +1,20 @@
+{
+  "id": "w3-15",
+  "world": 3,
+  "targetName": "Deer",
+  "object": {
+    "kind": "model",
+    "url": "models/w3/deer_junk.glb"
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [-100, -110, 70],
+  "light": {
+    "solution": [9, 8],
+    "start": [-10, -4]
+  },
+  "threshold": 0.75,
+  "parTime": 80,
+  "allowMirror": false,
+  "reveal": "stomp",
+  "mask": "masks/w3-15.png"
+}

@@ -1,0 +1,42 @@
+{
+  "id": "w2-12",
+  "world": 2,
+  "targetName": "Car",
+  "pieces": [
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/car_cabin_junk.glb"
+      },
+      "offset": [-0.0499, 0.1648, 1.8414],
+      "scale": 0.5419,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [-95, 80, 50]
+    },
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/car_body_junk.glb"
+      },
+      "offset": [0.02, -0.2397, 0.1188],
+      "scale": 0.7936,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [100, -90, -45]
+    },
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/car_wheels_junk.glb"
+      },
+      "offset": [0, -0.4994, -1.8414],
+      "scale": 0.6978,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [85, 100, 60]
+    }
+  ],
+  "threshold": 0.9,
+  "parTime": 90,
+  "allowMirror": false,
+  "reveal": "rock",
+  "mask": "masks/w2-12.png"
+}

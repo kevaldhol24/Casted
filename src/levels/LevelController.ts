@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import type { Arcball } from '../core/Arcball';
 import type { GameAudio } from '../core/Audio';
-import type { Input } from '../core/Input';
+import type { Input, RotateIntent } from '../core/Input';
 import type { Renderer } from '../core/Renderer';
 import type { HintTier } from '../core/Store';
 import type { Portal } from '../portal/Portal';
 import { MaskRenderer } from '../shadow/MaskRenderer';
 import { TargetMask, blurToBytes, meterFromIou, rgbaToMask } from '../shadow/Matcher';
-import { LIGHT_DIR, OBJECT_POS, type ShadowScene } from '../shadow/ShadowScene';
+import { LIGHT_DIR, OBJECT_POS, WALL_Z, lampToPad, lightDirection, padToLamp, type ShadowScene } from '../shadow/ShadowScene';
 import type { DebugView } from '../ui/DebugView';
 import type { Hud } from '../ui/Hud';
 import type { ArrowKind, ObjectArrow } from '../ui/ObjectArrow';
@@ -29,6 +29,20 @@ const HINT_PULSE_S = 45;
 const REVEAL_LEFT_DEG = 15;
 /** Assembly: if the player hasn't switched objects after this long, point at the Switch button. */
 const SWITCH_TIP_S = 8;
+/**
+ * Light control: lamp degrees per screen-degree of drag (light-only levels), per second on the arrow keys. Fine on
+ * purpose: the wall is 3.8 units behind the object, so each degree slides the shadow about 0.07 units.
+ */
+const LAMP_PER_DRAG = 0.08;
+const LAMP_KEY_SPEED = 8;
+/** Reveal hint leaves the lamp this far (degrees) from where it must be; nudge points at the lamp past this. */
+const LAMP_REVEAL_LEFT = 1;
+const LAMP_NUDGE_FROM = 1.5;
+
+interface Lamp {
+  yaw: number;
+  pitch: number;
+}
 
 const AXIS_ARROW: Record<Axis, ArrowKind> = { x: 'pitch', y: 'yaw', z: 'roll' };
 
@@ -113,6 +127,10 @@ export class LevelController {
   /** Pause / menu / ad open: the clock stops and input is ignored. */
   private suspended = false;
   private displayTex: THREE.DataTexture | null = null;
+  /** Light control (World 3): where the lamp is now and where it must be; null = the light is fixed. */
+  private lamp: Lamp | null = null;
+  private lampSol: Lamp = { yaw: 0, pitch: 0 };
+  private lastLamp: Lamp = { yaw: 0, pitch: 0 };
   reduceMotion = false;
   hintsEnabled = false;
   onComplete: (r: LevelResult) => void = () => {};
@@ -143,10 +161,69 @@ export class LevelController {
     return this.pieces[this.active]?.pivot ?? this.c.scene.objectRoot;
   }
 
-  /** Dev/tests: put every piece at its first solution and score. */
+  /** The player moves the lamp (World 3). */
+  get hasLight() {
+    return this.lamp !== null;
+  }
+
+  /** Only the lamp moves (no object can turn): dragging anywhere moves the lamp. */
+  get lightOnly() {
+    return this.lamp !== null && this.pieces.every((p) => p.def.locked || !p.def.freeAxes.length);
+  }
+
+  /** Dev/tests: put every piece (and the lamp) at its solution and score. */
   solveAll() {
     for (const p of this.pieces) p.pivot.quaternion.copy(p.solutions[0]);
+    if (this.lamp) this.setLamp(this.lampSol.yaw, this.lampSol.pitch);
     this.scoreSync();
+  }
+
+  /** Move the lamp (degrees from the default light), kept inside the pad's circle. */
+  private setLamp(yaw: number, pitch: number) {
+    if (!this.lamp) return;
+    const p = lampToPad(yaw, pitch);
+    const r = Math.hypot(p.x, p.y);
+    if (r > 1) {
+      p.x /= r;
+      p.y /= r;
+    }
+    Object.assign(this.lamp, padToLamp(p.x, p.y));
+    this.c.scene.setLightDir(lightDirection(this.lamp.yaw, this.lamp.pitch));
+    this.c.hud.setLight(p.x, p.y);
+    this.scoreDirty = true;
+  }
+
+  private get canMove() {
+    return this.state === 'playing' && !this.suspended;
+  }
+
+  /** Lamp pad: put the lamp at pad position (x, y), unit circle, y up. */
+  setLampPad(x: number, y: number) {
+    if (!this.lamp || !this.canMove) return;
+    const l = padToLamp(x, y);
+    this.setLamp(l.yaw, l.pitch);
+  }
+
+  /** Light-only levels: a drag anywhere moves the lamp the way the finger goes. */
+  dragLamp(i: RotateIntent) {
+    if (!this.lamp || !this.canMove) return;
+    this.setLamp(this.lamp.yaw + i.yaw * LAMP_PER_DRAG, this.lamp.pitch - i.pitch * LAMP_PER_DRAG);
+  }
+
+  /** First touch of the lamp pad counts as touching the level (hides the wordless hand). */
+  grabLamp() {
+    if (this.state !== 'playing') return;
+    this.markTouched();
+  }
+
+  private markTouched() {
+    if (this.touched) return;
+    this.touched = true;
+    this.c.hud.showHand(null);
+  }
+
+  private lampDistance() {
+    return this.lamp ? Math.hypot(this.lampSol.yaw - this.lamp.yaw, this.lampSol.pitch - this.lamp.pitch) : 0;
   }
 
   start(level: LevelDef, objects: LevelObjectInstance[], suspended = false) {
@@ -175,9 +252,17 @@ export class LevelController {
     const root = scene.objectRoot;
     root.position.copy(OBJECT_POS);
     root.scale.setScalar(1);
-    mask.aim(OBJECT_POS, LIGHT_DIR);
+    // Light control: the target is cast with the lamp at its solution; the player starts with it elsewhere.
+    const light = level.light;
+    this.lamp = light ? { yaw: light.start[0], pitch: light.start[1] } : null;
+    this.lampSol = light ? { yaw: light.solution[0], pitch: light.solution[1] } : { yaw: 0, pitch: 0 };
+    const solDir = light ? lightDirection(light.solution[0], light.solution[1]) : LIGHT_DIR.clone();
+    scene.setLightDir(solDir);
+    mask.aim(OBJECT_POS, solDir);
+    mask.setLight(null, WALL_Z);
 
-    // Solutions are stored in light space: identity = local Z points back at the light, local Y is light-space up.
+    // Solutions are stored in light space (the solution light's): identity = local Z points back at the light,
+    // local Y is light-space up.
     // Assembly pieces sit at their light-space offsets under an unrotated root, so world and local rotations agree.
     const cam = mask.camera;
     const axes = [0, 1, 2].map((col) => new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, col).normalize());
@@ -205,12 +290,18 @@ export class LevelController {
     this.displayTex.magFilter = THREE.LinearFilter;
     this.displayTex.minFilter = THREE.LinearFilter;
     this.displayTex.needsUpdate = true;
-    scene.placeOutline(cam, mask.halfSize, this.displayTex);
+    scene.placeOutline(cam, mask.halfSize, this.displayTex, solDir);
     scene.setReveal(level.reveal, maskBounds(big, DISPLAY_MASK_SIZE));
     scene.objectShadow = true;
 
     this.pieces.forEach((p, i) => (p.solutions = this.findSolutions(i, solved[i])));
     hud.setPieces(this.isAssembly ? this.pieces.map((p) => !!p.def.locked) : []);
+    hud.lightControl = !!this.lamp;
+    if (this.lamp) {
+      this.setLamp(this.lamp.yaw, this.lamp.pitch);
+      this.lastLamp = { ...this.lamp };
+      this.prepareMask();
+    }
     this.placeStart(solved);
 
     scene.fill = 0;
@@ -243,6 +334,7 @@ export class LevelController {
         arcball.enabled = true;
         this.c.portal.gameplayStart();
         this.showAxisGuide();
+        if (level.tip) hud.toast(level.tip, 3.2);
       });
   }
 
@@ -250,7 +342,8 @@ export class LevelController {
   private showAxisGuide() {
     const single = this.singleAxis();
     if (!single) return this.c.arrow.hide();
-    if (!this.touched) this.c.hud.showHand(single === 'y' ? 'h' : 'v');
+    // Roll-only pieces spin with a sideways drag (Arcball.drag), so they get the sideways hand too.
+    if (!this.touched) this.c.hud.showHand(single === 'x' ? 'v' : 'h');
     this.c.arrow.guide(AXIS_ARROW[single]);
   }
 
@@ -352,16 +445,16 @@ export class LevelController {
   grab() {
     if (this.state !== 'playing') return;
     this.c.arcball.grab();
-    if (!this.touched) {
-      this.touched = true;
-      this.c.hud.showHand(null);
-    }
+    this.markTouched();
   }
 
   private prepareMask() {
     const { mask, scene } = this.c;
-    // The mask camera follows the bobbing object, so the score depends on rotation only.
-    mask.aim(scene.objectRoot.position, LIGHT_DIR);
+    // The mask camera follows the bobbing object, so the score depends on rotation only. Light control: it keeps
+    // the solution light's view and scores the shadow where it lands on the wall, inside the outline, so the meter
+    // fills only as the real shadow covers the outline.
+    mask.aim(scene.objectRoot.position, scene.targetDir);
+    mask.setLight(this.lamp ? scene.lightDir : null, WALL_Z);
     scene.objectRoot.updateMatrixWorld(true);
   }
 
@@ -408,6 +501,10 @@ export class LevelController {
       turned += (p.pivot.quaternion.angleTo(p.lastQ) * 180) / Math.PI;
       p.lastQ.copy(p.pivot.quaternion);
     }
+    if (this.lamp) {
+      turned += Math.hypot(this.lamp.yaw - this.lastLamp.yaw, this.lamp.pitch - this.lastLamp.pitch);
+      this.lastLamp = { ...this.lamp };
+    }
     audio.setRotateSpeed(dt > 0 && this.state !== 'snapping' ? turned / dt : 0);
 
     if ((this.state !== 'playing' && this.state !== 'hinting') || this.suspended) {
@@ -416,12 +513,21 @@ export class LevelController {
     }
     if (this.state === 'playing') {
       this.time += dt;
-      hud.dim = input.dragging;
-      arcball.update(dt, input.keyAxes());
+      hud.dim = input.dragging || hud.lightDragging;
+      // Light control: the arrow keys move the lamp (WASD too when only the lamp moves); WASD / Q / E turn the object.
+      const keys = this.lamp ? input.wasdAxes() : input.keyAxes();
+      if (this.lamp) {
+        const a = input.arrowAxes();
+        const ax = a.x + (this.lightOnly ? keys.yaw : 0);
+        const ay = a.y + (this.lightOnly ? keys.pitch : 0);
+        if (ax || ay) this.setLamp(this.lamp.yaw + ax * LAMP_KEY_SPEED * dt, this.lamp.pitch - ay * LAMP_KEY_SPEED * dt);
+      }
+      arcball.update(dt, keys);
       if (arcball.changed) this.scoreDirty = true;
     } else this.scoreDirty = true;
     this.sinceScore += dt;
-    if (this.scoreDirty && (!input.dragging || this.sinceScore >= DRAG_SCORE_INTERVAL_S)) this.scoreAsync();
+    const dragging = input.dragging || hud.lightDragging;
+    if (this.scoreDirty && (!dragging || this.sinceScore >= DRAG_SCORE_INTERVAL_S)) this.scoreAsync();
 
     const goal = meterFromIou(this.iou, this.level.threshold, this.meterFloor);
     this.meter += (goal - this.meter) * Math.min(1, dt * 12);
@@ -495,11 +601,19 @@ export class LevelController {
     this.hintsUsed++;
     this.stuckT = 0;
     audio.hint();
-    this.touched = true;
-    this.c.hud.showHand(null);
+    this.markTouched();
     const piece = this.hintPiece();
+    const lampFrom = this.lamp ? { ...this.lamp } : null;
+    const lampDist = this.lampDistance();
 
     if (tier === 'nudge') {
+      // Light control: point at the lamp first while it is off (always, when only the lamp moves).
+      if (lampFrom && (this.lightOnly || lampDist > LAMP_NUDGE_FROM)) {
+        const a = lampToPad(lampFrom.yaw, lampFrom.pitch);
+        const b = lampToPad(this.lampSol.yaw, this.lampSol.pitch);
+        this.c.hud.nudgeLight(Math.atan2(b.y - a.y, b.x - a.x));
+        return;
+      }
       const n = this.nudgeDirection(piece);
       const single = this.singleAxis();
       arrow.nudge(n.kind, n.sign, 2, single ? AXIS_ARROW[single] : null);
@@ -510,12 +624,18 @@ export class LevelController {
     const from = obj.quaternion.clone();
     const to = this.nearestSolution(piece).clone();
     const total = from.angleTo(to);
-    const k = tier === 'peek' ? this.peekAmount(piece, from, to) : Math.max(0, 1 - THREE.MathUtils.degToRad(REVEAL_LEFT_DEG) / Math.max(total, 1e-6));
-    const goal = from.clone().slerp(to, k);
+    // Peek and Reveal move the lamp too (by the same share for Peek; Reveal leaves it a few degrees off).
+    const moveLamp = (kObj: number, kLamp: number) => {
+      obj.quaternion.slerpQuaternions(from, to, kObj);
+      if (lampFrom)
+        this.setLamp(lampFrom.yaw + (this.lampSol.yaw - lampFrom.yaw) * kLamp, lampFrom.pitch + (this.lampSol.pitch - lampFrom.pitch) * kLamp);
+    };
+    const k = tier === 'peek' ? this.peekAmount(moveLamp) : Math.max(0, 1 - THREE.MathUtils.degToRad(REVEAL_LEFT_DEG) / Math.max(total, 1e-6));
+    const kLamp = tier === 'peek' ? k : Math.max(0, 1 - LAMP_REVEAL_LEFT / Math.max(lampDist, 1e-6));
     this.state = 'hinting';
     arcball.enabled = false;
     arcball.stop();
-    await tweens.to(tier === 'peek' ? 0.9 : 1.2, (t) => obj.quaternion.slerpQuaternions(from, goal, t), easeInOutCubic);
+    await tweens.to(tier === 'peek' ? 0.9 : 1.2, (t) => moveLamp(k * t, kLamp * t), easeInOutCubic);
     if (tier === 'reveal') {
       await tweens.to(0.35, (t) => (scene.fill = 0.55 * t));
       await tweens.to(0.6, (t) => (scene.fill = 0.55 * (1 - t)));
@@ -530,19 +650,18 @@ export class LevelController {
    * Peek turns halfway to the solution — but halfway in rotation doesn't always look closer in shadow, so if
    * it wouldn't visibly raise the score, go further (up to 80%) so the hint always moves the meter.
    */
-  private peekAmount(piece: Piece, from: THREE.Quaternion, to: THREE.Quaternion): number {
-    const obj = piece.pivot;
+  private peekAmount(move: (kObj: number, kLamp: number) => void): number {
     const start = this.iou;
     let pick = 0.8;
     for (const k of [0.5, 0.6, 0.7, 0.8]) {
-      obj.quaternion.slerpQuaternions(from, to, k);
+      move(k, k);
       this.prepareMask();
       if (this.target.iou(this.c.mask.render(SCORE_SIZE)) > start + 0.08) {
         pick = k;
         break;
       }
     }
-    obj.quaternion.copy(from);
+    move(0, 0);
     return pick;
   }
 
@@ -585,10 +704,12 @@ export class LevelController {
 
     const root = scene.objectRoot;
     const moves = this.pieces.map((p) => ({ p, from: p.pivot.quaternion.clone(), to: this.nearestSolution(p) }));
+    const lampFrom = this.lamp ? { ...this.lamp } : null;
     const fromY = root.position.y;
     tweens
       .to(SNAP_TWEEN_S, (k) => {
         for (const m of moves) m.p.pivot.quaternion.slerpQuaternions(m.from, m.to, k);
+        if (lampFrom) this.setLamp(lampFrom.yaw + (this.lampSol.yaw - lampFrom.yaw) * k, lampFrom.pitch + (this.lampSol.pitch - lampFrom.pitch) * k);
         root.position.y = fromY + (OBJECT_POS.y - fromY) * k;
         hud.setMeter(this.meter + (1 - this.meter) * k);
         scene.glow = 1;

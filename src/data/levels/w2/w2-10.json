@@ -1,0 +1,32 @@
+{
+  "id": "w2-10",
+  "world": 2,
+  "targetName": "Rubber duck",
+  "pieces": [
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/duck_head_junk.glb"
+      },
+      "offset": [0.4819, 0.295, 0.742],
+      "scale": 0.4958,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [-110, 75, -50]
+    },
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/duck_body_junk.glb"
+      },
+      "offset": [-0.0885, -0.3639, -0.742],
+      "scale": 0.802,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [95, -90, 70]
+    }
+  ],
+  "threshold": 0.9,
+  "parTime": 70,
+  "allowMirror": false,
+  "reveal": "rock",
+  "mask": "masks/w2-10.png"
+}

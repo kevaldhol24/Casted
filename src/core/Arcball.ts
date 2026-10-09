@@ -43,6 +43,11 @@ export class Arcball {
 
   drag(i: RotateIntent) {
     if (!this.enabled) return;
+    // Roll-only object: a plain sideways drag spins it (like Shift-drag), so nothing needs a modifier.
+    if (this.freeAxes.length === 1 && this.freeAxes[0] === 'z') {
+      this.frameIntent.roll += i.roll - i.yaw;
+      return;
+    }
     this.frameIntent.yaw += i.yaw;
     this.frameIntent.pitch += i.pitch;
     this.frameIntent.roll += i.roll;

@@ -1,0 +1,21 @@
+{
+  "id": "w3-03",
+  "world": 3,
+  "targetName": "Squirrel",
+  "object": {
+    "kind": "model",
+    "url": "models/w3/squirrel_junk.glb"
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [60, -75, 0],
+  "light": {
+    "solution": [-5, -2],
+    "start": [10, 6]
+  },
+  "threshold": 0.75,
+  "parTime": 40,
+  "allowMirror": false,
+  "reveal": "hop",
+  "tip": "Turn it for the shape · the lamp moves the shadow",
+  "mask": "masks/w3-03.png"
+}

@@ -1,0 +1,32 @@
+{
+  "id": "w2-08",
+  "world": 2,
+  "targetName": "Pineapple",
+  "pieces": [
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/pineapple_crown_junk.glb"
+      },
+      "offset": [-0.0202, 0.5966, 0.7272],
+      "scale": 0.623,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [-95, -80, 60]
+    },
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/pineapple_fruit_junk.glb"
+      },
+      "offset": [0, -0.364, -0.7272],
+      "scale": 0.6916,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [90, 110, -40]
+    }
+  ],
+  "threshold": 0.9,
+  "parTime": 65,
+  "allowMirror": false,
+  "reveal": "sway",
+  "mask": "masks/w2-08.png"
+}

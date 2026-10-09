@@ -1,0 +1,42 @@
+{
+  "id": "w2-11",
+  "world": 2,
+  "targetName": "Snowman",
+  "pieces": [
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/snowman_head_junk.glb"
+      },
+      "offset": [0.0534, 0.4896, 1.4053],
+      "scale": 0.3554,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [90, -85, 45]
+    },
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/snowman_middle_junk.glb"
+      },
+      "offset": [-0.0069, 0.0739, 0.1787],
+      "scale": 0.6223,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [-80, 100, -40]
+    },
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/snowman_base_junk.glb"
+      },
+      "offset": [0, -0.5474, -1.4053],
+      "scale": 0.6608,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [70, 90, 0]
+    }
+  ],
+  "threshold": 0.9,
+  "parTime": 80,
+  "allowMirror": false,
+  "reveal": "hop",
+  "mask": "masks/w2-11.png"
+}

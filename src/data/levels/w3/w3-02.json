@@ -1,0 +1,20 @@
+{
+  "id": "w3-02",
+  "world": 3,
+  "targetName": "Owl",
+  "object": {
+    "kind": "model",
+    "url": "models/w3/owl_junk.glb"
+  },
+  "freeAxes": [],
+  "startOffset": [0, 0, 0],
+  "light": {
+    "solution": [5, -3],
+    "start": [-10, 6]
+  },
+  "threshold": 0.75,
+  "parTime": 30,
+  "allowMirror": false,
+  "reveal": "rock",
+  "mask": "masks/w3-02.png"
+}

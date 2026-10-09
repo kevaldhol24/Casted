@@ -471,6 +471,10 @@ button {
 .album-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  /* Rows keep their content height and the grid scrolls; auto rows would shrink to fit and the square cells overlap. */
+  grid-auto-rows: max-content;
+  align-content: start;
+  min-height: 0;
   gap: 8px;
   overflow-y: auto;
   margin-bottom: 4px;
@@ -481,18 +485,21 @@ button {
   aspect-ratio: 1;
   border-radius: 14px;
   background: #d8c3a0;
-  display: grid;
-  place-items: center;
-  align-content: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 4px 5px;
   overflow: hidden;
-  position: relative;
 }
-.album-cell canvas { width: 72%; height: auto; }
+/* The art scales with the cell and leaves room for the name below it. */
+.album-cell .album-art { flex: 1 1 0; min-height: 0; width: auto !important; height: auto !important; aspect-ratio: 1; max-width: 100%; }
 .album-name {
-  position: absolute;
-  bottom: 4px;
-  left: 0;
-  right: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   text-align: center;
   font-size: 10px;
   font-weight: 800;
@@ -559,3 +566,75 @@ button {
 .piece-dots .dot { width: 9px; height: 9px; border-radius: 50%; background: rgba(255, 246, 232, 0.35); transition: background 0.2s ease, transform 0.2s ease; }
 .piece-dots .dot.on { background: #fff6e8; transform: scale(1.25); }
 .piece-dots .dot.locked { opacity: 0.35; }
+
+/* ---------- Light control: lamp pad ---------- */
+.light-pad {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  width: 156px;
+  height: 156px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, transparent 0 31%, rgba(255, 246, 232, 0.1) 31% 32%, transparent 32% 62%, rgba(255, 246, 232, 0.1) 62% 63%, transparent 63%),
+    linear-gradient(rgba(255, 246, 232, 0.08), rgba(255, 246, 232, 0.08)) center / 1px 72% no-repeat,
+    linear-gradient(rgba(255, 246, 232, 0.08), rgba(255, 246, 232, 0.08)) center / 72% 1px no-repeat,
+    var(--panel);
+  box-shadow: inset 0 0 0 1px var(--panel-edge), 0 6px 16px rgba(0, 0, 0, 0.3);
+  touch-action: none;
+  cursor: grab;
+  transition: opacity 0.25s ease;
+}
+.light-pad.active { cursor: grabbing; }
+.light-pad.hidden { opacity: 0; pointer-events: none; }
+.light-pad-label {
+  position: absolute;
+  left: 50%;
+  top: -22px;
+  transform: translateX(-50%);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  pointer-events: none;
+}
+.light-puck {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  color: #4a3500;
+  background: radial-gradient(circle at 40% 35%, #fff6c8, #ffd35a 60%, #e8a52a);
+  box-shadow: 0 0 18px 4px rgba(255, 214, 90, 0.55), 0 2px 6px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  transition: box-shadow 0.2s ease;
+}
+.light-puck svg { width: 22px; height: 22px; }
+.light-pad.active .light-puck { box-shadow: 0 0 26px 8px rgba(255, 214, 90, 0.75), 0 2px 6px rgba(0, 0, 0, 0.35); }
+.light-arrow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 128px;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.light-arrow::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: -9px;
+  border: 9px solid transparent;
+  border-left: 14px solid var(--accent, #f08a3c);
+  animation: light-arrow 0.8s ease-in-out infinite alternate;
+}
+.light-arrow.show { opacity: 1; }
+@keyframes light-arrow { from { transform: translateX(-10px); } to { transform: translateX(4px); } }

@@ -1,5 +1,10 @@
 import { el, ICONS } from './dom';
 
+/** How far the lamp pad's bulb travels from the centre, as a share of the pad's width. */
+const PAD_TRAVEL = 0.35;
+/** Dragging the bulb moves it at this share of the finger's speed: the lamp needs fine positioning. */
+const PAD_FINE = 0.5;
+
 /**
  * Level-play HUD, per the design doc: pause (top left), match meter + level number (top centre),
  * Bulbs + hint button (top right). A mute button stays visible next to pause (portal requirement).
@@ -24,6 +29,20 @@ export class Hud {
   private switchWrap = el('div', 'piece-switch');
   readonly switchBtn = el('button', 'switch-btn interactive', `${ICONS.swap}<span>Switch</span>`);
   private dots = el('div', 'piece-dots');
+  /**
+   * Light control (World 3): a round pad seen from the player's side; the bulb on it is the lamp. Drag the bulb
+   * (or tap anywhere on the pad) to move the lamp around the object. Nothing on it marks the answer.
+   */
+  private lightPad = el('div', 'light-pad interactive');
+  private puck = el('div', 'light-puck', ICONS.bulb);
+  private lightArrow = el('div', 'light-arrow');
+  /** Drag in progress: where the finger and the bulb were when it started (pad units). */
+  private padGrab: { id: number; px: number; py: number; bx: number; by: number; fine: boolean } | null = null;
+  private padPos = { x: 0, y: 0 };
+  private arrowTimer = 0;
+  /** Pad position, x right and y up, inside the unit circle. */
+  onLight = (_x: number, _y: number) => {};
+  onLightGrab = () => {};
   private toastTimer = 0;
 
   constructor(parent: HTMLElement) {
@@ -48,7 +67,14 @@ export class Hud {
     this.switchBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
     this.switchWrap.append(this.switchBtn, this.dots);
     this.switchWrap.style.display = 'none';
-    parent.append(this.root, this.switchWrap, this.toastEl, this.hand);
+    this.lightPad.setAttribute('aria-label', 'Lamp');
+    this.lightPad.append(el('span', 'light-pad-label', 'Lamp'), this.lightArrow, this.puck);
+    this.lightPad.style.display = 'none';
+    this.lightPad.addEventListener('pointerdown', this.padDown);
+    this.lightPad.addEventListener('pointermove', this.padMove);
+    this.lightPad.addEventListener('pointerup', this.padUp);
+    this.lightPad.addEventListener('pointercancel', this.padUp);
+    parent.append(this.root, this.switchWrap, this.lightPad, this.toastEl, this.hand);
   }
 
   setLevel(text: string) {
@@ -96,6 +122,68 @@ export class Hud {
   set visible(v: boolean) {
     this.root.classList.toggle('hidden', !v);
     this.switchWrap.classList.toggle('hidden', !v);
+    this.lightPad.classList.toggle('hidden', !v);
+  }
+
+  /** Light-control levels show the lamp pad. */
+  set lightControl(on: boolean) {
+    this.lightPad.style.display = on ? '' : 'none';
+    if (!on) this.padGrab = null;
+  }
+
+  /** Put the bulb at pad position (x, y), each -1…1 (y up). */
+  setLight(x: number, y: number) {
+    this.padPos = { x, y };
+    this.puck.style.left = `${(50 + x * PAD_TRAVEL * 100).toFixed(2)}%`;
+    this.puck.style.top = `${(50 - y * PAD_TRAVEL * 100).toFixed(2)}%`;
+  }
+
+  /** Nudge hint: an arrow on the pad pointing the way to move the lamp (radians, 0 = right, anticlockwise). */
+  nudgeLight(angle: number, seconds = 2) {
+    this.lightArrow.style.transform = `translate(-50%, -50%) rotate(${(-angle * 180) / Math.PI}deg)`;
+    this.lightArrow.classList.add('show');
+    clearTimeout(this.arrowTimer);
+    this.arrowTimer = window.setTimeout(() => this.lightArrow.classList.remove('show'), seconds * 1000);
+  }
+
+  private padPoint(e: PointerEvent) {
+    const r = this.lightPad.getBoundingClientRect();
+    const t = Math.max(1, r.width * PAD_TRAVEL);
+    return { x: (e.clientX - (r.left + r.width / 2)) / t, y: -(e.clientY - (r.top + r.height / 2)) / t };
+  }
+
+  private padDown = (e: PointerEvent) => {
+    // The pad has its own drag: it must not also spin the object.
+    e.stopPropagation();
+    e.preventDefault();
+    this.lightPad.setPointerCapture?.(e.pointerId);
+    const p = this.padPoint(e);
+    const pr = this.puck.getBoundingClientRect();
+    const onPuck = Math.hypot(e.clientX - (pr.left + pr.width / 2), e.clientY - (pr.top + pr.height / 2)) < pr.width * 0.75;
+    // Grabbing the bulb moves it finely from where it is; tapping elsewhere on the pad jumps the bulb there.
+    const cur = onPuck ? this.padPos : p;
+    this.padGrab = { id: e.pointerId, px: p.x, py: p.y, bx: cur.x, by: cur.y, fine: onPuck };
+    this.lightPad.classList.add('active');
+    this.onLightGrab();
+    if (!onPuck) this.onLight(p.x, p.y);
+  };
+
+  private padMove = (e: PointerEvent) => {
+    if (!this.padGrab || this.padGrab.id !== e.pointerId) return;
+    const g = this.padGrab;
+    const p = this.padPoint(e);
+    const k = g.fine ? PAD_FINE : 1;
+    this.onLight(g.bx + (p.x - g.px) * k, g.by + (p.y - g.py) * k);
+  };
+
+  private padUp = (e: PointerEvent) => {
+    if (!this.padGrab || this.padGrab.id !== e.pointerId) return;
+    this.padGrab = null;
+    this.lightPad.classList.remove('active');
+  };
+
+  get lightDragging() {
+    return this.padGrab !== null;
   }
 
   /** Assembly: show the Switch button when at least two objects can be turned (dots: one per object, locked dim). */

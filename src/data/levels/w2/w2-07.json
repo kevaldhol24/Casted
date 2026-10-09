@@ -1,0 +1,32 @@
+{
+  "id": "w2-07",
+  "world": 2,
+  "targetName": "Lighthouse",
+  "pieces": [
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/lighthouse_lamp_junk.glb"
+      },
+      "offset": [0, 0.553, 0.7644],
+      "scale": 0.6565,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [100, 80, -45]
+    },
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/lighthouse_tower_junk.glb"
+      },
+      "offset": [0, -0.2744, -0.7644],
+      "scale": 0.6544,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [-80, -105, 50]
+    }
+  ],
+  "threshold": 0.9,
+  "parTime": 65,
+  "allowMirror": false,
+  "reveal": "pulse",
+  "mask": "masks/w2-07.png"
+}

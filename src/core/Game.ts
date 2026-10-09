@@ -115,7 +115,8 @@ export class Game {
     const arcball = new Arcball(this.scene.objectRoot, mask.camera);
     this.input = new Input(canvas, {
       onGrab: () => this.level.grab(),
-      onDrag: (i) => arcball.drag(i),
+      // Light-only levels (World 3): a drag anywhere moves the lamp instead of turning the object.
+      onDrag: (i) => (this.level.lightOnly ? this.level.dragLamp(i) : arcball.drag(i)),
       onRelease: () => arcball.release(),
       onKey: (code) => this.onKey(code),
     });
@@ -150,6 +151,8 @@ export class Game {
     this.hud.muteBtn.addEventListener('click', () => this.toggleMute());
     this.hud.hintBtn.addEventListener('click', () => this.openHints());
     this.hud.switchBtn.addEventListener('click', () => this.level.playing && this.level.cycle());
+    this.hud.onLight = (x, y) => this.level.setLampPad(x, y);
+    this.hud.onLightGrab = () => this.level.grabLamp();
 
     this.menu.onPlay = () => this.openWorlds();
     this.menu.onMode = (key) => {

@@ -1,0 +1,21 @@
+{
+  "id": "w3-01",
+  "world": 3,
+  "targetName": "Snail",
+  "object": {
+    "kind": "model",
+    "url": "models/w3/snail_junk.glb"
+  },
+  "freeAxes": [],
+  "startOffset": [0, 0, 0],
+  "light": {
+    "solution": [-3, 2],
+    "start": [13, 1]
+  },
+  "threshold": 0.75,
+  "parTime": 20,
+  "allowMirror": false,
+  "reveal": "roll",
+  "tip": "Move the lamp to put the shadow on the outline",
+  "mask": "masks/w3-01.png"
+}
