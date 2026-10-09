@@ -63,6 +63,7 @@ export class Album {
 /** Model levels: the editor's exported mask PNG (shape opaque, background transparent), tinted with the accent through a CSS mask. */
 function maskImage(level: LevelDef, size: number, color: string): HTMLElement {
   const div = document.createElement('div');
+  div.className = 'album-art';
   div.style.width = div.style.height = `${size}px`;
   if (!level.mask) return div;
   const url = `url("${import.meta.env.BASE_URL}${level.mask}")`;
@@ -77,7 +78,7 @@ function drawSilhouette(key: string, size: number, color: string): HTMLCanvasEle
   const canvas = document.createElement('canvas');
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   canvas.width = canvas.height = size * dpr;
-  canvas.style.width = canvas.style.height = `${size}px`;
+  canvas.className = 'album-art';
   const ctx = canvas.getContext('2d')!;
   const b = silhouetteBounds(sil);
   const span = Math.max(b.max.x - b.min.x, b.max.y - b.min.y);
