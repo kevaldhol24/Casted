@@ -1,0 +1,20 @@
+{
+  "id": "w3-10",
+  "world": 3,
+  "targetName": "Fox",
+  "object": {
+    "kind": "model",
+    "url": "models/w3/fox_junk.glb"
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [90, 105, 50],
+  "light": {
+    "solution": [4, -5],
+    "start": [-11, 6]
+  },
+  "threshold": 0.75,
+  "parTime": 60,
+  "allowMirror": false,
+  "reveal": "sway",
+  "mask": "masks/w3-10.png"
+}

@@ -1,0 +1,42 @@
+{
+  "id": "w2-14",
+  "world": 2,
+  "targetName": "Robot",
+  "pieces": [
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/robot_head_junk.glb"
+      },
+      "offset": [0, 0.7162, 1.6728],
+      "scale": 0.3557,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [110, -80, -55]
+    },
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/robot_torso_junk.glb"
+      },
+      "offset": [0.0614, 0.2046, 0.0554],
+      "scale": 0.9245,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [-90, 95, 65]
+    },
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/robot_legs_junk.glb"
+      },
+      "offset": [0, -0.6701, -1.6728],
+      "scale": 0.537,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [80, 110, -40]
+    }
+  ],
+  "threshold": 0.9,
+  "parTime": 100,
+  "allowMirror": false,
+  "reveal": "strum",
+  "mask": "masks/w2-14.png"
+}

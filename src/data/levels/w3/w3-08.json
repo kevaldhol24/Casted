@@ -1,0 +1,20 @@
+{
+  "id": "w3-08",
+  "world": 3,
+  "targetName": "Bee",
+  "object": {
+    "kind": "model",
+    "url": "models/w3/bee_junk.glb"
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [100, -80, 60],
+  "light": {
+    "solution": [9, 6],
+    "start": [-8, -5]
+  },
+  "threshold": 0.75,
+  "parTime": 55,
+  "allowMirror": false,
+  "reveal": "flap",
+  "mask": "masks/w3-08.png"
+}

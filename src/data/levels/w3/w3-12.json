@@ -1,0 +1,20 @@
+{
+  "id": "w3-12",
+  "world": 3,
+  "targetName": "Seahorse",
+  "object": {
+    "kind": "model",
+    "url": "models/w3/seahorse_junk.glb"
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [95, -100, -70],
+  "light": {
+    "solution": [-7, 7],
+    "start": [11, -4]
+  },
+  "threshold": 0.75,
+  "parTime": 65,
+  "allowMirror": false,
+  "reveal": "swim",
+  "mask": "masks/w3-12.png"
+}

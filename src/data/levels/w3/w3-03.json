@@ -6,7 +6,7 @@
     "kind": "model",
     "url": "models/w3/squirrel_junk.glb"
   },
-  "freeAxes": ["x", "y"],
+  "freeAxes": ["x", "y", "z"],
   "startOffset": [60, -75, 0],
   "light": {
     "solution": [-5, -2],

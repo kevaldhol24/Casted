@@ -8,8 +8,8 @@
         "kind": "model",
         "url": "models/w2/ice_scoop_junk.glb"
       },
-      "offset": [0.0053, 0.3989, 0.8268],
-      "scale": 0.7704,
+      "offset": [0.0053, 0.3981, 0.8268],
+      "scale": 0.7687,
       "freeAxes": ["x", "y", "z"],
       "startOffset": [80, -70, 0]
     },
@@ -18,8 +18,8 @@
         "kind": "model",
         "url": "models/w2/ice_cone_junk.glb"
       },
-      "offset": [0, -0.5426, -0.8268],
-      "scale": 0.6646,
+      "offset": [0, -0.5414, -0.8268],
+      "scale": 0.6655,
       "freeAxes": ["x", "y", "z"],
       "startOffset": [-60, 100, 0]
     }

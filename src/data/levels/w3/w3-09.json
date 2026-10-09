@@ -1,0 +1,20 @@
+{
+  "id": "w3-09",
+  "world": 3,
+  "targetName": "Mouse",
+  "object": {
+    "kind": "model",
+    "url": "models/w3/mouse_junk.glb"
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [-95, 85, -60],
+  "light": {
+    "solution": [-10, 2],
+    "start": [10, -4]
+  },
+  "threshold": 0.75,
+  "parTime": 60,
+  "allowMirror": false,
+  "reveal": "hop",
+  "mask": "masks/w3-09.png"
+}

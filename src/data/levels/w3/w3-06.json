@@ -1,0 +1,20 @@
+{
+  "id": "w3-06",
+  "world": 3,
+  "targetName": "Frog",
+  "object": {
+    "kind": "model",
+    "url": "models/w3/frog_junk.glb"
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [70, 95, -45],
+  "light": {
+    "solution": [7, 5],
+    "start": [-11, -4]
+  },
+  "threshold": 0.75,
+  "parTime": 50,
+  "allowMirror": false,
+  "reveal": "hop",
+  "mask": "masks/w3-06.png"
+}

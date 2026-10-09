@@ -1,0 +1,42 @@
+{
+  "id": "w2-15",
+  "world": 2,
+  "targetName": "Castle",
+  "pieces": [
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/castle_left_junk.glb"
+      },
+      "offset": [-0.5909, -0.1576, 1.4108],
+      "scale": 0.5579,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [-95, 105, 50]
+    },
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/castle_keep_junk.glb"
+      },
+      "offset": [0, -0.2758, 0.0366],
+      "scale": 0.5736,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [100, -95, -60]
+    },
+    {
+      "object": {
+        "kind": "model",
+        "url": "models/w2/castle_right_junk.glb"
+      },
+      "offset": [0.5909, 0.0276, -1.4108],
+      "scale": 0.6274,
+      "freeAxes": ["x", "y", "z"],
+      "startOffset": [85, 90, 70]
+    }
+  ],
+  "threshold": 0.9,
+  "parTime": 110,
+  "allowMirror": false,
+  "reveal": "pulse",
+  "mask": "masks/w2-15.png"
+}

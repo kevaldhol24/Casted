@@ -1,0 +1,20 @@
+{
+  "id": "w3-07",
+  "world": 3,
+  "targetName": "Hedgehog",
+  "object": {
+    "kind": "model",
+    "url": "models/w3/hedgehog_junk.glb"
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [-85, -90, 55],
+  "light": {
+    "solution": [-8, -4],
+    "start": [10, 8]
+  },
+  "threshold": 0.75,
+  "parTime": 55,
+  "allowMirror": false,
+  "reveal": "roll",
+  "mask": "masks/w3-07.png"
+}
