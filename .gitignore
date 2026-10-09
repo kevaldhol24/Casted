@@ -2,3 +2,5 @@ node_modules
 dist
 *.log
 dist-poki
+.wrangler
+.dev.vars

@@ -70,6 +70,11 @@ export class PausePanel {
       this.onSettings(this.settings);
     });
     qualityRow.append(el('span', '', 'Quality'), this.quality);
+    // Relative link: privacy.html ships inside every build, so it opens without leaving the game's own files.
+    const privacy = el('a', 'privacy-link interactive', 'Privacy policy');
+    privacy.href = 'privacy.html';
+    privacy.target = '_blank';
+    privacy.rel = 'noopener';
     const back = el('button', 'btn-secondary interactive', 'Back');
     const backRow = el('div', 'btn-row');
     backRow.append(back);
@@ -79,6 +84,7 @@ export class PausePanel {
       slider('sensitivity', 'Rotation speed', 0.4, 2, 0.05),
       qualityRow,
       toggle,
+      privacy,
       backRow,
     );
 

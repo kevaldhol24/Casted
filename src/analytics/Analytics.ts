@@ -285,6 +285,8 @@ export class Analytics {
   readonly measures: [string, string, string][] = [];
   readonly summaries: string[] = [];
   private outbox: AnyRecord[] = [];
+  /** pagehide has fired: the page is going away. */
+  private closed = false;
   private tier = 'unknown';
 
   constructor(private portal: Portal) {
@@ -315,6 +317,8 @@ export class Analytics {
     // Page hide: snapshot the open attempt and flush everything with sendBeacon.
     document.addEventListener('visibilitychange', () => this.safe(() => document.hidden && this.pageHidden('tab-hidden')));
     addEventListener('pagehide', () => this.safe(() => this.pageHidden('closed')));
+    // Back from the bfcache: the page lives on.
+    addEventListener('pageshow', (e) => this.safe(() => e.persisted && (this.closed = false)));
     if (import.meta.env.DEV) Object.assign(window, { __castedAnalytics: this });
   }
 
@@ -380,6 +384,9 @@ export class Analytics {
   }
 
   private pageHidden(reason: 'tab-hidden' | 'closed') {
+    // Closing fires pagehide and then visibilitychange; the later "hidden" must not overwrite "closed".
+    if (this.closed) return;
+    if (reason === 'closed') this.closed = true;
     const l = this.live;
     if (l?.started) {
       // A snapshot, not the end: if the player comes back, the same attemptId is sent again when it ends.

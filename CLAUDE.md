@@ -81,6 +81,11 @@ solution), and drag with `page.mouse` to verify input (the lamp pad is `.light-p
   `[casted] …` console line per attempt (A+), session / attempt / ad records (B). B is sent only when the build sets
   `VITE_TELEMETRY_URL`; otherwise records stay in memory (`window.__castedAnalytics` in dev: `records`, `measures`,
   `summaries`). Game code never calls `PokiSDK.measure` or `fetch` for analytics
+- `telemetry/` — Layer B backend, its own npm project (not part of the game build): Cloudflare Worker (`src/index.ts`,
+  `POST /e`, origin allowlist, 64 KB cap, daily retention cron) + D1 (`schema.sql`), saved queries in `queries/`,
+  `npm test` for the record validator. Deploy steps and the Poki CSP URL are in `telemetry/README.md`
+- `public/privacy.html` — privacy policy (ships in every build; linked from Settings). Replace `CONTACT_EMAIL` before
+  requesting CSP
 - `src/util/` — tweens, seeded RNG
 
 ## Conventions

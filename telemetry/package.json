@@ -1,0 +1,18 @@
+{
+  "name": "casted-telemetry",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning test/validate.test.ts",
+    "db:init": "wrangler d1 execute casted-telemetry --remote --file=schema.sql",
+    "db:init:local": "wrangler d1 execute casted-telemetry --local --file=schema.sql"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261006.1",
+    "typescript": "~5.9.0",
+    "wrangler": "^4.30.0"
+  }
+}

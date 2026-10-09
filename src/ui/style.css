@@ -217,6 +217,7 @@ button {
 .setting { display: grid; grid-template-columns: 1fr 1.4fr; align-items: center; gap: 12px; font-weight: 800; font-size: 15px; }
 .setting input[type='range'] { width: 100%; accent-color: var(--accent); height: 28px; }
 .setting.toggle input { justify-self: end; width: 26px; height: 26px; accent-color: var(--accent); }
+.privacy-link { justify-self: center; font-size: 13px; font-weight: 800; color: var(--ink-dim); text-decoration: underline; padding: 4px 8px; }
 
 /* ---------- Toast ---------- */
 .toast {
