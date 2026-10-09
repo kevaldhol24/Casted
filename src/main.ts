@@ -3,6 +3,8 @@ import nunitoUrl from '@fontsource-variable/nunito/files/nunito-latin-wght-norma
 import { Game } from './core/Game';
 import { Store } from './core/Store';
 import { LocalPortal } from './portal/LocalPortal';
+import { PokiPortal } from './portal/PokiPortal';
+import type { Portal } from './portal/Portal';
 
 /** The one display font: Nunito (variable weight, Latin subset, ~39 KB woff2), bundled — no font CDN. */
 function loadFont() {
@@ -13,7 +15,9 @@ function loadFont() {
 
 async function boot() {
   const font = loadFont();
-  const portal = new LocalPortal();
+  // `--mode poki` builds talk to Poki; every other build (Netlify, plain dev) runs locally.
+  if (import.meta.env.DEV && import.meta.env.MODE === 'poki' && !window.PokiSDK) (await import('./portal/PokiMock')).installPokiMock();
+  const portal: Portal = import.meta.env.MODE === 'poki' ? new PokiPortal() : new LocalPortal();
   // The game continues even if the portal SDK fails to init (adblock, offline).
   await portal.init().catch(() => {});
   // Wait briefly for the font so the first menu doesn't re-flow; never block boot on it.

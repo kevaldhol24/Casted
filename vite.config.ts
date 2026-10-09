@@ -67,11 +67,27 @@ function levelEditor(): Plugin {
   };
 }
 
-export default defineConfig({
+/**
+ * Poki build (`vite build --mode poki`): the SDK script tag goes in before the game's module, so window.PokiSDK
+ * exists at boot. It is the build's only off-bundle request, and Poki serves it. `dev --mode poki` gets no tag:
+ * main.ts installs the logging mock instead.
+ */
+function pokiSdk(): Plugin {
+  return {
+    name: 'casted-poki-sdk',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'pre',
+      handler: () => [{ tag: 'script', attrs: { src: 'https://game-cdn.poki.com/scripts/v2/poki-sdk.js' }, injectTo: 'head' }],
+    },
+  };
+}
+
+export default defineConfig(({ mode }) => ({
   base: './',
-  plugins: [levelEditor()],
+  plugins: [levelEditor(), ...(mode === 'poki' ? [pokiSdk()] : [])],
   build: { target: 'es2020', assetsInlineLimit: 0, chunkSizeWarningLimit: 800 },
   server: { host: true },
   // Model loaders are imported lazily; pre-bundle them so the first model level doesn't hit a dev re-optimise (504).
   optimizeDeps: { include: ['three/addons/loaders/GLTFLoader.js', 'three/addons/loaders/DRACOLoader.js'] },
-});
+}));

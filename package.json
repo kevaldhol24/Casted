@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:poki": "vite --mode poki",
     "build": "tsc --noEmit && vite build",
+    "build:poki": "tsc --noEmit && vite build --mode poki --outDir dist-poki",
     "preview": "vite preview",
     "models": "node --experimental-strip-types --disable-warning=ExperimentalWarning tools/build-models.mjs"
   },

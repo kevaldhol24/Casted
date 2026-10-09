@@ -426,9 +426,6 @@ button {
 .mode-tile[disabled] { opacity: 0.55; cursor: default; }
 .mode-label { font-weight: 900; font-size: 17px; }
 .mode-note { font-size: 12px; font-weight: 700; color: var(--ink-dim); }
-/* CrazyGames banner (728×90 desktop, 320×50 mobile) sits here, 15–20 px clear of buttons. */
-.banner-slot { height: 50px; margin-top: 18px; }
-@media (min-width: 900px) { .banner-slot { height: 90px; } }
 
 /* ---------- World select ---------- */
 .world-list { display: grid; gap: 10px; margin-bottom: 12px; }
@@ -638,3 +635,7 @@ button {
 }
 .light-arrow.show { opacity: 1; }
 @keyframes light-arrow { from { transform: translateX(-10px); } to { transform: translateX(4px); } }
+
+/* ---------- Ad break: swallows every click and touch until the break settles ---------- */
+.ad-block { position: fixed; inset: 0; z-index: 1000; display: none; pointer-events: auto; }
+.ad-block.show { display: block; }

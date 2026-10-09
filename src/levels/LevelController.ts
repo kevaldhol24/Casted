@@ -748,18 +748,25 @@ export class LevelController {
 
   /** Leaving the level (pause, menu, ad): stop gameplay without completing. */
   suspend() {
+    // Only the first suspend stops gameplay (pause → hint → ad would otherwise stop it again).
+    if (this.state === 'playing' && !this.suspended) this.c.portal.gameplayStop();
     this.suspended = true;
-    if (this.state === 'playing') this.c.portal.gameplayStop();
     this.c.arcball.enabled = false;
     this.c.arcball.release();
     this.c.audio.setRotateSpeed(0);
   }
 
   resume() {
+    const was = this.suspended;
     this.suspended = false;
     if (this.state === 'playing') {
-      this.c.portal.gameplayStart();
+      if (was) this.c.portal.gameplayStart();
       this.c.arcball.enabled = true;
     }
+  }
+
+  /** Suspended mid-level (paused, a panel or an ad open): resume() will restart gameplay. */
+  get isSuspended() {
+    return this.suspended;
   }
 }

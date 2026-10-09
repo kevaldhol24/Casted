@@ -36,6 +36,11 @@ Never add Claude/AI attribution (no `Co-Authored-By`, no "Generated with Claude 
 - `npm run dev` — dev server (http://localhost:5173)
 - `npm run build` — type-check + production build into `dist/` (relative paths, works from any subfolder)
 - `npm run preview` — serve the built `dist/`
+- `npm run dev:poki` — dev server in Poki mode: `PokiPortal` against a logging `window.PokiSDK` mock
+  (`src/portal/PokiMock.ts`; `window.__pokiLog` holds the ordered calls, the corner button or `?rewarded=fail` makes
+  rewarded breaks fail)
+- `npm run build:poki` — Poki build into `dist-poki/`: same game plus the Poki SDK script tag (its only off-bundle
+  request). Every other build uses `LocalPortal`
 - `npm run models` — rebuild the authored models from `tools/models/` (`kit.mjs` shatter/junk tools, `w1.mjs`,
   `w2.mjs`, `w3.mjs`) → `public/models/w<N>/*.glb` (Draco) + `public/masks/*.png`. World 1: points the level JSONs at
   the models (other fields kept). Worlds 2 and 3: write the whole level JSON from `w2.mjs` / `w3.mjs` (World 2 piece
@@ -71,7 +76,7 @@ solution), and drag with `page.mouse` to verify input (the lamp pad is `.light-p
 - `src/tools/LevelEditor.ts` + `tools/level-editor.html` — dev-only level editor; its save endpoint is a dev-server
   plugin in `vite.config.ts`
 - `src/ui/` — HTML/CSS overlay (HUD, win screen, toasts)
-- `src/portal/` — `Portal` interface + `LocalPortal` (Poki/CrazyGames adapters come in Phase 3)
+- `src/portal/` — `Portal` interface, `LocalPortal` (Netlify / dev), `PokiPortal` (`--mode poki`), `PokiMock` (dev only)
 - `src/util/` — tweens, seeded RNG
 
 ## Conventions
@@ -93,3 +98,7 @@ solution), and drag with `page.mouse` to verify input (the lamp pad is `.light-p
   solution lamp's view); omitted = identity.
   GLB models are normalised to a bounding-sphere radius of 1.3 by `normalizeModel`, in both the editor and the game.
 - Keep Vite `base: './'` (portals require relative paths).
+- Poki only (CrazyGames dropped). Ad breaks go through `Game.adBreak()` (commercial break before every gameplayStart
+  the player asked for, from level 3, never on the session's first transition) and `Game.rewarded()`; both run inside
+  `runAd()`, which mutes, blocks all input and suspends the level. `LevelController.suspend()/resume()` fire
+  gameplayStop/Start only on a real change, so they never double-fire.

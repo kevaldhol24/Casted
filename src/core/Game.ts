@@ -28,8 +28,8 @@ import { FrameMonitor, TIERS, detectTier, lowerTier, type Tier } from './Quality
 import { Renderer } from './Renderer';
 import { BULBS, HINT_COST, type HintTier, type SaveData, Store } from './Store';
 
-/** After using the video option on the hint panel, it stays off this long. */
-const REWARDED_COOLDOWN_S = 60;
+/** After a rewarded video, the video buttons stay off this long. Poki paces its own ads, so none there. */
+const REWARDED_COOLDOWN_S = import.meta.env.MODE === 'poki' ? 0 : 60;
 const NO_VIDEO = 'No video available right now — try again soon.';
 
 type Mode = 'campaign' | 'daily' | 'endless';
@@ -58,6 +58,8 @@ export class Game {
   private hintPanel: HintPanel;
   private pause: PausePanel;
   private vignette = el('div', 'css-vignette');
+  /** Covers the whole UI during an ad so no button or the lamp pad can be pressed. */
+  private adBlock = el('div', 'ad-block');
   private input: Input;
   private audio = new GameAudio();
   private tweens = new Tweens();
@@ -110,6 +112,7 @@ export class Game {
     this.levelSelect = new LevelSelect(ui);
     this.hintPanel = new HintPanel(ui);
     this.pause = new PausePanel(ui);
+    ui.append(this.adBlock);
     const debug = new URLSearchParams(location.search).has('debug') ? new DebugView(ui, SCORE_SIZE) : null;
 
     const arcball = new Arcball(this.scene.objectRoot, mask.camera);
@@ -162,7 +165,7 @@ export class Game {
           (id) => this.store.isSolved(id),
         );
       else if (key === 'daily') this.openDaily();
-      else if (key === 'endless') this.startEndless();
+      else if (key === 'endless') this.adBreak(null).then(() => this.startEndless());
       else this.showMenu();
     };
     this.menu.settingsBtn.addEventListener('click', () => this.pause.show(this.store.data.settings, true));
@@ -170,17 +173,20 @@ export class Game {
     this.album.onBack = () => this.showMenu();
     this.worlds.onPick = (id) => this.openLevels(WORLDS.find((w) => w.id === id)!, 'worlds');
     this.worlds.onBack = () => this.showMenu();
-    this.levelSelect.onPick = (level) => {
+    this.levelSelect.onPick = async (level) => {
       this.inMenus = false;
-      this.play(LEVELS.indexOf(level));
+      const i = LEVELS.indexOf(level);
+      await this.adBreak(i);
+      this.play(i);
     };
     this.levelSelect.onClose = () => {
       if (this.levelSelectFrom === 'worlds') this.openWorlds();
-      else this.level.resume();
+      else this.unpause();
     };
 
-    this.pause.onResume = () => this.level.resume();
-    this.pause.onRestart = () => {
+    this.pause.onResume = () => this.unpause();
+    this.pause.onRestart = async () => {
+      await this.adBreak(this.mode === 'campaign' ? this.index : null);
       if (this.mode === 'daily') this.playDaily();
       else if (this.mode === 'endless') this.startEndless();
       else this.play(this.index);
@@ -207,15 +213,19 @@ export class Game {
     const next = firstUnsolved === -1 ? 0 : firstUnsolved;
     const returning = LEVELS.some((l) => this.store.isSolved(l.id));
     const loginBulb = this.store.claimDailyLogin();
+    // A shared Daily link (shareDaily) opens today's Daily, or its result card if it's already solved.
+    const dailyLink = !!this.portal.getURLParam?.('daily');
     if (params.get('mode') === 'daily') this.playDaily();
     else if (params.get('mode') === 'endless') this.startEndless();
     else if (param >= 1 && param <= LEVELS.length) this.play(param - 1);
-    else if (returning) {
+    else if (dailyLink && !this.dailyDone()) this.playDaily();
+    else if (returning || dailyLink) {
       // Return visit: the menu, with the next level already built behind it.
       this.index = next;
       this.level.hintsEnabled = this.hintsUnlocked(next);
       this.showMenu();
       this.load(LEVELS[next], true);
+      if (dailyLink) this.showDailyResult(0);
     } else this.play(next);
     if (loginBulb) setTimeout(() => this.hud.toast(`+${BULBS.dailyLogin} Bulb`), 900);
     this.renderer.gl.setAnimationLoop(() => this.frame());
@@ -307,16 +317,28 @@ export class Game {
     }
   }
 
-  /**
-   * Level transitions (Next / Replay) request a midgame from level 3 on; the SDK decides if an ad plays.
-   * The first transition of a session never shows one.
-   */
   private async transition(i: number) {
-    if (!this.firstTransition && i + 1 >= 3) {
-      await this.runAd(() => this.portal.midgame({ onStart: () => this.audio.setAdMuted(true) }));
-    }
-    this.firstTransition = false;
+    await this.adBreak(i);
     this.play(i);
+  }
+
+  /**
+   * Poki: a commercial break before every gameplayStart the player asked for: next level, retry, unpause,
+   * a level from the grid, a mode from the menu. Not before campaign levels 1-2 (`levelIndex` 0-1; null =
+   * Daily / Endless), never on the session's first transition, and the SDK decides whether an ad plays.
+   * Closing the hint panel, coming back to the tab and resuming after a rewarded video don't ask.
+   */
+  private async adBreak(levelIndex: number | null) {
+    const allowed = !this.firstTransition && (levelIndex === null || levelIndex + 1 >= 3);
+    this.firstTransition = false;
+    if (allowed) await this.runAd(() => this.portal.midgame({ onStart: () => this.audio.setAdMuted(true) }));
+  }
+
+  /** Back into the level from the pause menu or the level grid. */
+  private async unpause() {
+    if (!this.level.isSuspended) return this.level.resume();
+    await this.adBreak(this.mode === 'campaign' ? this.index : null);
+    if (!this.inMenus && !this.pause.open && !this.levelSelect.open) this.level.resume();
   }
 
   private next() {
@@ -390,15 +412,21 @@ export class Game {
 
   // --- ads, hints, Bulbs ------------------------------------------------------------------------
 
-  /** Pause and block input for the whole ad request; audio mutes only when the ad starts. */
+  /**
+   * Pause, mute and block all input (keys, canvas, every button) for the whole ad request. Everything is
+   * restored when the request settles, whether or not an ad actually started.
+   */
   private async runAd<T>(request: () => Promise<T>): Promise<T> {
     this.inAd = true;
     this.input.enabled = false;
+    this.adBlock.classList.add('show');
+    this.audio.setAdMuted(true);
     this.level.suspend();
     try {
       return await request();
     } finally {
       this.audio.setAdMuted(false);
+      this.adBlock.classList.remove('show');
       this.input.enabled = true;
       this.inAd = false;
     }
@@ -480,9 +508,10 @@ export class Game {
   }
 
   /** From the menu: today's puzzle, or today's result card if it's already solved. */
-  private openDaily() {
-    if (this.dailyDone()) this.showDailyResult(0);
-    else this.playDaily();
+  private async openDaily() {
+    if (this.dailyDone()) return this.showDailyResult(0);
+    await this.adBreak(null);
+    this.playDaily();
   }
 
   private playDaily() {
@@ -526,9 +555,17 @@ export class Game {
 
   private async shareDaily() {
     const res = this.store.data.daily.last!;
-    const text = shareText(this.today, res.stars, res.time, res.hints, location.origin + location.pathname);
+    const text = shareText(this.today, res.stars, res.time, res.hints, await this.dailyLink());
     if (import.meta.env.DEV) console.debug('[event] daily_share', { date: this.today });
     this.hud.toast((await copyText(text)) ? 'Copied — paste it anywhere' : "Couldn't copy", 2);
+  }
+
+  /** The portal's link to today's Daily (Poki: its game page with ?gddaily=n); this page otherwise. */
+  private async dailyLink() {
+    try {
+      if (this.portal.shareableURL) return await this.portal.shareableURL({ daily: dailyNumber(this.today) });
+    } catch {}
+    return location.origin + location.pathname;
   }
 
   /** Rewarded "second attempt at 3 stars": once per day; the better result is kept. */
@@ -621,7 +658,7 @@ export class Game {
   /** "Play again" requests a midgame, unless the player already watched a continue this run. */
   private async endlessAgain() {
     this.card.hide();
-    if (!this.run?.continued) await this.runAd(() => this.portal.midgame({ onStart: () => this.audio.setAdMuted(true) }));
+    if (!this.run?.continued) await this.adBreak(null);
     this.startEndless();
   }
 
@@ -636,13 +673,13 @@ export class Game {
     if (code === 'Escape' || code === 'KeyP') {
       if (this.levelSelect.open) {
         this.levelSelect.hide();
-        this.level.resume();
+        this.unpause();
       } else if (this.hintPanel.open) {
         this.hintPanel.hide();
         this.level.resume();
       } else if (this.pause.open) {
         this.pause.hide();
-        this.level.resume();
+        this.unpause();
       } else this.openPause();
     } else if (code === 'KeyH') this.openHints();
     else if (code === 'Tab') this.level.cycle();
