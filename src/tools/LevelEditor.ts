@@ -10,7 +10,8 @@ import { LevelLoader, type LevelObjectInstance } from '../levels/LevelLoader';
 import { LEVELS, REVEALS, isSingle, type Axis, type LevelObject, type RevealKind, type SingleLevel } from '../levels/levels';
 
 /** The editor authors single-object levels; assembly levels (World 2) come from npm run models. */
-const SINGLE = LEVELS.filter(isSingle);
+/** Single-object levels with a fixed light (light-control levels come from tools/models). */
+const SINGLE = LEVELS.filter(isSingle).filter((l) => !l.light);
 import { MaskRenderer } from '../shadow/MaskRenderer';
 import { TargetMask, blurToBytes, rgbaToMask, type Mask } from '../shadow/Matcher';
 import { ATTIC, LIGHT_DIR, OBJECT_POS, ShadowScene } from '../shadow/ShadowScene';

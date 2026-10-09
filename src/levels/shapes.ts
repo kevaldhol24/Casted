@@ -332,7 +332,82 @@ function rocketBody(): Silhouette {
 
 const rocketFlame = (): Silhouette => [poly([[-0.15, -0.52], [0.15, -0.52], [0.1, -0.72], [0, -1.0], [-0.1, -0.72]])];
 
+// --- World 3 (Workshop) ---------------------------------------------------------------------------
+
+function snail(): Silhouette {
+  const shell = circle(0.18, 0.1, 0.56);
+  shell.holes.push(hole(0.26, 0.08, 0.14));
+  return [
+    shell,
+    poly([[-0.95, -0.62], [0.82, -0.62], [0.98, -0.5], [0.62, -0.38], [-0.62, -0.38]]),
+    ellipse(-0.74, -0.28, 0.19, 0.3),
+    line(-0.8, -0.1, -0.95, 0.38, 0.07),
+    line(-0.66, -0.1, -0.6, 0.42, 0.07),
+    circle(-0.95, 0.4, 0.08),
+    circle(-0.6, 0.44, 0.08),
+  ];
+}
+
+function owl(): Silhouette {
+  const body = ellipse(0, -0.12, 0.56, 0.72);
+  body.holes.push(hole(-0.21, 0.22, 0.12), hole(0.21, 0.22, 0.12));
+  return [
+    body,
+    poly([[-0.5, 0.3], [-0.16, 0.52], [-0.52, 0.88]]),
+    poly([[0.16, 0.52], [0.5, 0.3], [0.52, 0.88]]),
+    poly([[-0.07, 0.12], [0.07, 0.12], [0, -0.06]]),
+    rect(-0.98, -0.94, 0.98, -0.8),
+    rect(-0.24, -0.86, -0.1, -0.74),
+    rect(0.1, -0.86, 0.24, -0.74),
+  ];
+}
+
+function squirrel(): Silhouette {
+  return [
+    ellipse(0.18, -0.42, 0.38, 0.5),
+    circle(0.36, 0.22, 0.27),
+    poly([[0.24, 0.42], [0.3, 0.74], [0.42, 0.44]]),
+    curve([[0.0, -0.78], [-0.98, -0.62], [-0.98, 0.62], [-0.36, 0.78]], 0.36),
+    circle(0.6, -0.12, 0.12),
+    ellipse(0.24, -0.9, 0.36, 0.07),
+  ];
+}
+
+function turtle(): Silhouette {
+  const dome: [number, number][] = [];
+  for (let i = 0; i <= 16; i++) {
+    const a = (i / 16) * Math.PI;
+    dome.push([Math.cos(a) * 0.72, -0.2 + Math.sin(a) * 0.55]);
+  }
+  return [
+    poly(dome),
+    rect(-0.78, -0.3, 0.78, -0.18),
+    rect(0.6, -0.22, 0.86, -0.06),
+    circle(0.92, -0.04, 0.17),
+    rect(-0.52, -0.58, -0.3, -0.2),
+    rect(0.26, -0.58, 0.48, -0.2),
+    poly([[-0.7, -0.28], [-0.98, -0.38], [-0.72, -0.14]]),
+  ];
+}
+
+function dragonfly(): Silhouette {
+  return [
+    rect(-0.06, -0.98, 0.06, 0.2),
+    ellipse(0, 0.24, 0.1, 0.16),
+    circle(0, 0.5, 0.14),
+    ellipse(-0.46, 0.3, 0.5, 0.13, 0.16),
+    ellipse(0.46, 0.3, 0.5, 0.13, -0.16),
+    ellipse(-0.4, 0.04, 0.44, 0.11, -0.22),
+    ellipse(0.4, 0.04, 0.44, 0.11, 0.22),
+  ];
+}
+
 export const SILHOUETTES: Record<string, () => Silhouette> = {
+  snail,
+  owl,
+  squirrel,
+  turtle,
+  dragonfly,
   mushroomCap,
   mushroomStem,
   iceScoop,

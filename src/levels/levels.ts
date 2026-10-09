@@ -27,6 +27,20 @@ interface LevelBase {
   endless?: boolean;
   /** Target mask PNG (relative to the site root) — the Album draws it for model levels. */
   mask?: string;
+  /** Light control (World 3+): the player moves the lamp around a hemisphere. */
+  light?: LevelLight;
+  /** One-line toast when play starts (teaching levels). */
+  tip?: string;
+}
+
+/**
+ * Lamp position as degrees from the default light: yaw (lamp to the right, as the player sees it) and pitch
+ * (lamp higher), inside LIGHT_RANGE (src/shadow/ShadowScene.ts: ±15° yaw, 12° up, 8° down).
+ */
+export interface LevelLight {
+  /** Where the lamp must be. The object's solution is relative to this light's view. */
+  solution: [number, number];
+  start: [number, number];
 }
 
 /** One level, as stored in src/data/levels/w<world>/<id>.json (written by tools/level-editor.html). */

@@ -32,6 +32,36 @@ export class MaskRenderer {
     this.camera.updateMatrixWorld();
   }
 
+  private shearM = new THREE.Matrix4();
+
+  /**
+   * Light control: score the shadow where it lands on the wall (the plane z = wallZ), in the frame the last aim()
+   * set up (the solution light's), while the light travels along `dir`. Each point is slid along `dir` onto the
+   * wall and read in that frame, which is exactly the outline quad's UV, so the mask shows how the wall shadow
+   * covers the outline. dir = the aim direction (or null) is the plain orthographic view.
+   */
+  setLight(dir: THREE.Vector3 | null, wallZ: number) {
+    const cam = this.camera;
+    cam.updateProjectionMatrix();
+    const m = cam.matrixWorld;
+    const R = new THREE.Vector3().setFromMatrixColumn(m, 0);
+    const U = new THREE.Vector3().setFromMatrixColumn(m, 1);
+    const B = new THREE.Vector3().setFromMatrixColumn(m, 2);
+    if (!dir || Math.abs(dir.dot(R)) + Math.abs(dir.dot(U)) < 1e-6) return;
+    // View coords (x, y, z) → wall coords: x' = x + ((wallZ - p.z) / dir.z) * (dir · R), same for y with U.
+    const a = dir.dot(R) / dir.z;
+    const b = dir.dot(U) / dir.z;
+    const dz = wallZ - cam.position.z;
+    this.shearM.set(
+      1 - a * R.z, -a * U.z, -a * B.z, a * dz,
+      -b * R.z, 1 - b * U.z, -b * B.z, b * dz,
+      0, 0, 1, 0,
+      0, 0, 0, 1,
+    );
+    cam.projectionMatrix.multiply(this.shearM);
+    cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
+  }
+
   private target(size: number) {
     let t = this.targets.get(size);
     if (!t) {

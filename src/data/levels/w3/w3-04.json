@@ -1,0 +1,20 @@
+{
+  "id": "w3-04",
+  "world": 3,
+  "targetName": "Turtle",
+  "object": {
+    "kind": "model",
+    "url": "models/w3/turtle_junk.glb"
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [80, -60, 40],
+  "light": {
+    "solution": [3, 4],
+    "start": [-10, -3]
+  },
+  "threshold": 0.75,
+  "parTime": 45,
+  "allowMirror": false,
+  "reveal": "roll",
+  "mask": "masks/w3-04.png"
+}

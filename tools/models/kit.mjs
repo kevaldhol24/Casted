@@ -23,6 +23,9 @@ export const C = {
   blue: '#6f7f99',
   cream: '#d8c8a8',
   green: '#7f8a62',
+  // Workshop tools and paint
+  orange: '#b8713a',
+  teal: '#5f7f7c',
 };
 
 /** Mulberry32 (same as src/util/rng.ts): a model rebuilds identically from its seed. */

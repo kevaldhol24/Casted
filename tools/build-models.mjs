@@ -4,6 +4,8 @@
  *     and points src/data/levels/w1/<id>.json at the model (other level fields are kept).
  *   World 2 (tools/models/w2.mjs): assembly levels, one GLB per piece → public/models/w2/<name>.glb; writes the
  *     whole level JSON, with each piece's offset and scale worked out so the pieces fit the mask together.
+ *   World 3 (tools/models/w3.mjs): light-control levels, one object each → public/models/w3/<name>.glb; writes the
+ *     whole level JSON (the lamp's solution and start come from w3.mjs).
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
@@ -17,6 +19,7 @@ import draco3d from 'draco3dgltf';
 import { rasterize } from './models/kit.mjs';
 import { W1_MODELS } from './models/w1.mjs';
 import { W2_LEVELS } from './models/w2.mjs';
+import { W3_LEVELS } from './models/w3.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 /** Must match src/levels/LevelLoader.ts (MODEL_RADIUS, normalizeModel's farthest-vertex radius) and the mask camera. */
@@ -222,5 +225,34 @@ for (const lv of W2_LEVELS) {
   );
   console.log(`${lv.id} ${lv.targetName}: k ${k.toFixed(3)}, mask ${(m.cover * 100).toFixed(0)}%${m.edge ? '  touches mask edge!' : ''}`);
   if (m.edge) failed = true;
+}
+// --- World 3: light control ----------------------------------------------------------------------
+for (const lv of W3_LEVELS) {
+  const model = lv.build();
+  const { all, center, radius, extra } = analyse(model);
+  const s = MODEL_RADIUS / radius;
+  const m = maskOf(all.map((g) => g.clone().translate(-center.x, -center.y, -center.z).scale(s, s, s)));
+  const url = `models/w3/${lv.name}.glb`;
+  const bytes = await writeGlb(`public/${url}`, lv.name, model);
+  write(`public/masks/${lv.id}.png`, maskPng(m.mask, MASK_SIZE));
+  write(
+    `src/data/levels/w3/${lv.id}.json`,
+    formatJson({
+      id: lv.id,
+      world: 3,
+      targetName: lv.targetName,
+      object: { kind: 'model', url },
+      freeAxes: lv.freeAxes,
+      startOffset: lv.startOffset,
+      light: lv.light,
+      threshold: lv.threshold,
+      parTime: lv.parTime,
+      allowMirror: false,
+      reveal: lv.reveal,
+      ...(lv.tip ? { tip: lv.tip } : {}),
+      mask: `masks/${lv.id}.png`,
+    }),
+  );
+  report(`${lv.id} ${lv.name}`, bytes / 1024, model, m.cover, [extra && `${extra} px outside core!`, m.edge && 'touches mask edge!']);
 }
 if (failed) process.exitCode = 1;
