@@ -1,6 +1,6 @@
 /**
  * Dev-only stand-in for the Poki SDK (`npm run dev:poki`): logs every call to the console and to
- * window.__pokiLog, and plays a fake 0.4 s ad for every break. Rewarded breaks succeed or fail by the toggle
+ * window.__pokiLog, and shows a 1.5 s "MOCK AD" screen for every break. Rewarded breaks succeed or fail by the toggle
  * in the bottom-left corner (or ?rewarded=fail). Never part of a build: main.ts imports it only in dev.
  */
 type LogEntry = { t: number; call: string; args: unknown[] };
@@ -13,10 +13,18 @@ export function installPokiMock() {
     console.info(`[PokiSDK mock] ${call}`, ...args);
   };
   const state = { rewarded: new URLSearchParams(location.search).get('rewarded') !== 'fail' };
-  const fakeAd = async (onStart?: () => void) => {
+  /** A visible stand-in for the ad: a full-screen card for 1.5 s (a real commercialBreak often shows nothing). */
+  const fakeAd = async (kind: string, onStart?: () => void) => {
     await new Promise((r) => setTimeout(r, 50));
     onStart?.();
-    await new Promise((r) => setTimeout(r, 400));
+    const ad = document.createElement('div');
+    ad.className = 'poki-mock-ad';
+    ad.style.cssText =
+      'position:fixed;inset:0;z-index:2000;display:grid;place-items:center;background:rgba(10,10,20,0.92);color:#fff;font:700 22px system-ui;text-align:center';
+    ad.innerHTML = `<div>MOCK AD<br><span style="font-size:15px;font-weight:400">${kind}</span></div>`;
+    document.body.append(ad);
+    await new Promise((r) => setTimeout(r, 1500));
+    ad.remove();
   };
 
   const sdk: PokiSDKApi = {
@@ -28,11 +36,11 @@ export function installPokiMock() {
     gameplayStop: () => record('gameplayStop'),
     async commercialBreak(onStart) {
       record('commercialBreak');
-      await fakeAd(onStart);
+      await fakeAd('commercialBreak', onStart);
     },
     async rewardedBreak(opts) {
       record('rewardedBreak', opts?.size);
-      await fakeAd(opts?.onStart);
+      await fakeAd(`rewardedBreak · will ${state.rewarded ? 'succeed' : 'fail'}`, opts?.onStart);
       record('rewardedBreak →', state.rewarded);
       return state.rewarded;
     },

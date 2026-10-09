@@ -1,5 +1,6 @@
 import './ui/style.css';
 import nunitoUrl from '@fontsource-variable/nunito/files/nunito-latin-wght-normal.woff2?url';
+import { Analytics } from './analytics/Analytics';
 import { Game } from './core/Game';
 import { Store } from './core/Store';
 import { LocalPortal } from './portal/LocalPortal';
@@ -31,10 +32,12 @@ async function boot() {
     ui.innerHTML = '<div class="overlay center show"><button class="btn-primary interactive" style="width:240px" onclick="location.reload()">Tap to reload</button></div>';
   });
 
-  const game = new Game(canvas, ui, portal, store);
+  const analytics = new Analytics(portal);
+  const game = new Game(canvas, ui, portal, store, analytics);
   game.start();
   if (import.meta.env.DEV) (window as unknown as { __casted: Game }).__casted = game;
   portal.loadingFinished();
+  analytics.track({ type: 'loaded' });
   // Let the bar finish, then fade the loading screen out over the first frame.
   const boot = document.getElementById('boot');
   if (boot) {

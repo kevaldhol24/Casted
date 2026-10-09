@@ -22,7 +22,8 @@ export class WinScreen {
   private levels = el('button', 'btn-secondary interactive', 'Menu');
   private autoBar: HTMLElement;
   private autoT = -1;
-  onNext = () => {};
+  /** `auto`: the idle auto-advance fired, not a tap. */
+  onNext = (_auto: boolean) => {};
   onReplay = () => {};
   onMenu = () => {};
   onStar = (_index: number) => {};
@@ -41,7 +42,7 @@ export class WinScreen {
     this.overlay.append(card);
     parent.append(this.overlay);
     this.autoBar = this.next.querySelector('.auto')!;
-    this.next.addEventListener('click', () => this.fire(this.onNext));
+    this.next.addEventListener('click', () => this.fire(() => this.onNext(false)));
     this.replay.addEventListener('click', () => this.fire(this.onReplay));
     this.levels.addEventListener('click', () => this.fire(this.onMenu));
     // Any interaction with the card cancels the auto-advance.
@@ -88,6 +89,6 @@ export class WinScreen {
     if (this.autoT < 0) return;
     this.autoT += dt;
     this.autoBar.style.transform = `scaleX(${Math.min(1, this.autoT / AUTO_ADVANCE_S)})`;
-    if (this.autoT >= AUTO_ADVANCE_S) this.fire(this.onNext);
+    if (this.autoT >= AUTO_ADVANCE_S) this.fire(() => this.onNext(true));
   }
 }

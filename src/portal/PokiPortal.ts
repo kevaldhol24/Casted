@@ -76,6 +76,10 @@ export class PokiPortal implements Portal {
     return true;
   }
 
+  measure(category: string, what: string, action: string) {
+    this.call((s) => s.measure(category, what, action));
+  }
+
   async shareableURL(params: Record<string, string | number>) {
     const sdk = this.sdk;
     if (!sdk) throw new Error('Poki SDK missing');

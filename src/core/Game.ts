@@ -25,6 +25,7 @@ import { Arcball } from './Arcball';
 import { GameAudio } from './Audio';
 import { Input } from './Input';
 import { FrameMonitor, TIERS, detectTier, lowerTier, type Tier } from './Quality';
+import type { Analytics, Placement } from '../analytics/Analytics';
 import { Renderer } from './Renderer';
 import { BULBS, HINT_COST, type HintTier, type SaveData, Store } from './Store';
 
@@ -84,7 +85,13 @@ export class Game {
   private projected = new THREE.Vector3();
   private scaleTmp = new THREE.Vector3();
 
-  constructor(canvas: HTMLCanvasElement, ui: HTMLElement, private portal: Portal, private store: Store) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    ui: HTMLElement,
+    private portal: Portal,
+    private store: Store,
+    private analytics: Analytics,
+  ) {
     this.renderer = new Renderer(canvas);
     this.scene = new ShadowScene(ATTIC, TIERS[this.tier].shadowMap);
     const mask = new MaskRenderer(this.renderer.gl, this.scene.scene, 1.45);
@@ -117,11 +124,26 @@ export class Game {
 
     const arcball = new Arcball(this.scene.objectRoot, mask.camera);
     this.input = new Input(canvas, {
-      onGrab: () => this.level.grab(),
+      onGrab: () => {
+        this.level.grab();
+        this.analytics.track({ type: 'input', kind: 'grab' });
+      },
       // Light-only levels (World 3): a drag anywhere moves the lamp instead of turning the object.
-      onDrag: (i) => (this.level.lightOnly ? this.level.dragLamp(i) : arcball.drag(i)),
+      onDrag: (i) => {
+        if (this.level.lightOnly) {
+          this.level.dragLamp(i);
+          this.analytics.track({ type: 'input', kind: 'lamp' });
+        } else {
+          arcball.drag(i);
+          this.analytics.track({ type: 'drag', yaw: i.yaw, pitch: i.pitch, roll: i.roll });
+        }
+      },
       onRelease: () => arcball.release(),
-      onKey: (code) => this.onKey(code),
+      onKey: (code) => {
+        // Only keys that turn the object or move the lamp count as acting (not Tab, Esc, H).
+        if (/^(Key[WASDQE]|Arrow)/.test(code)) this.analytics.track({ type: 'input', kind: 'key' });
+        this.onKey(code);
+      },
     });
 
     this.level = new LevelController({
@@ -138,6 +160,8 @@ export class Game {
       debug,
     });
     this.level.onComplete = (r) => this.onComplete(r);
+    this.level.onPrompt = (prompt) => this.analytics.track({ type: 'prompt', prompt });
+    this.level.onSwitch = () => this.analytics.track({ type: 'switch' });
     this.applySettings(store.data.settings);
     this.monitor.onSlow = () => this.downgrade();
 
@@ -145,16 +169,29 @@ export class Game {
     ui.addEventListener('click', (e) => {
       if ((e.target as HTMLElement).closest('button')) this.audio.click();
     });
-    this.win.onNext = () => this.next();
-    this.win.onReplay = () => this.transition(this.index);
-    this.win.onMenu = () => this.showMenu();
+    this.win.onNext = (auto) => {
+      this.analytics.track({ type: 'win-action', action: auto ? 'auto-advance' : 'next' });
+      this.next();
+    };
+    this.win.onReplay = () => {
+      this.analytics.track({ type: 'win-action', action: 'replay' });
+      this.transition(this.index);
+    };
+    this.win.onMenu = () => {
+      this.analytics.track({ type: 'win-action', action: 'menu' });
+      this.showMenu();
+    };
+    this.card.onHide = () => this.analytics.track({ type: 'offers-closed' });
     this.win.onStar = (i) => this.audio.star(i);
     this.card.onStar = (i) => this.audio.star(i);
     this.hud.pauseBtn.addEventListener('click', () => this.openPause());
     this.hud.muteBtn.addEventListener('click', () => this.toggleMute());
-    this.hud.hintBtn.addEventListener('click', () => this.openHints());
+    this.hud.hintBtn.addEventListener('click', () => this.tapHint());
     this.hud.switchBtn.addEventListener('click', () => this.level.playing && this.level.cycle());
-    this.hud.onLight = (x, y) => this.level.setLampPad(x, y);
+    this.hud.onLight = (x, y) => {
+      this.level.setLampPad(x, y);
+      this.analytics.track({ type: 'input', kind: 'lamp' });
+    };
     this.hud.onLightGrab = () => this.level.grabLamp();
 
     this.menu.onPlay = () => this.openWorlds();
@@ -174,6 +211,7 @@ export class Game {
     this.worlds.onPick = (id) => this.openLevels(WORLDS.find((w) => w.id === id)!, 'worlds');
     this.worlds.onBack = () => this.showMenu();
     this.levelSelect.onPick = async (level) => {
+      if (this.levelSelectFrom === 'level') this.analytics.track({ type: 'end', outcome: 'quit-levels', bulbs: this.store.data.bulbs });
       this.inMenus = false;
       const i = LEVELS.indexOf(level);
       await this.adBreak(i);
@@ -186,6 +224,7 @@ export class Game {
 
     this.pause.onResume = () => this.unpause();
     this.pause.onRestart = async () => {
+      this.analytics.track({ type: 'end', outcome: 'restart', bulbs: this.store.data.bulbs });
       await this.adBreak(this.mode === 'campaign' ? this.index : null);
       if (this.mode === 'daily') this.playDaily();
       else if (this.mode === 'endless') this.startEndless();
@@ -197,9 +236,20 @@ export class Game {
       this.applySettings(s);
       this.store.save();
     };
-    this.hintPanel.onPick = (tier, withAd) => this.buyHint(tier, withAd);
-    this.hintPanel.onGetBulbs = () => this.watchForBulbs();
-    this.hintPanel.onClose = () => this.level.resume();
+    this.hintPanel.onPick = (tier, withAd) => {
+      this.analytics.track({ type: 'offers-closed' });
+      this.buyHint(tier, withAd);
+    };
+    this.hintPanel.onGetBulbs = () => {
+      this.analytics.track({ type: 'offers-closed' });
+      this.analytics.track({ type: 'hint-panel', action: 'close' });
+      this.watchForBulbs();
+    };
+    this.hintPanel.onClose = () => {
+      this.analytics.track({ type: 'offers-closed' });
+      this.analytics.track({ type: 'hint-panel', action: 'close' });
+      this.level.resume();
+    };
 
     document.addEventListener('visibilitychange', () => this.setHidden(document.hidden));
   }
@@ -252,7 +302,7 @@ export class Game {
     this.vignette.style.display = cssVignette ? '' : 'none';
     this.vignette.dataset.init = '1';
     this.monitor.reset();
-    if (first && import.meta.env.DEV) console.debug('[event] quality_tier', { tier, auto: this.store.data.settings.quality === 'auto' });
+    if (first) this.analytics.track({ type: 'quality', tier });
   }
 
   /** Auto mode only: drop one tier when frames stay slow. Never upgrades on its own. */
@@ -298,8 +348,11 @@ export class Game {
     this.hud.setTimer(mode === 'endless' && this.run ? this.run.timeLeft : null);
   }
 
-  /** Fetch/build the level's object, then start it — unless another level was requested meanwhile. */
-  private async load(level: LevelDef, suspended: boolean) {
+  /**
+   * Fetch/build the level's object, then start it — unless another level was requested meanwhile.
+   * `endlessTarget`: the next target of a running Endless run (the same analytics attempt).
+   */
+  private async load(level: LevelDef, suspended: boolean, endlessTarget = false) {
     const token = ++this.loadToken;
     try {
       const palette = paletteFor(level.world);
@@ -308,6 +361,18 @@ export class Game {
       this.scene.setWorld(palette);
       // The player may have opened the menu while a model was downloading.
       this.level.start(level, objs, suspended || this.inMenus);
+      if (endlessTarget) this.analytics.track({ type: 'target', level });
+      else
+        this.analytics.track({
+          type: 'attempt',
+          level,
+          mode: this.mode,
+          startIou: this.level.score,
+          bulbs: this.store.data.bulbs,
+          replay: this.mode === 'daily' ? this.dailyDone() : this.mode === 'campaign' && this.store.isSolved(level.id),
+          hintButton: this.level.hintsEnabled,
+          ...(this.mode === 'daily' ? { dailyNo: dailyNumber(this.today), streak: this.store.dailyStreak(this.today) } : {}),
+        });
       this.updateLabel();
       this.monitor.reset();
       if (this.mode === 'campaign') this.loader.preload(LEVELS[LEVELS.indexOf(level) + 1]);
@@ -331,7 +396,18 @@ export class Game {
   private async adBreak(levelIndex: number | null) {
     const allowed = !this.firstTransition && (levelIndex === null || levelIndex + 1 >= 3);
     this.firstTransition = false;
-    if (allowed) await this.runAd(() => this.portal.midgame({ onStart: () => this.audio.setAdMuted(true) }));
+    if (!allowed) return;
+    const t0 = performance.now();
+    let shown = false;
+    await this.runAd(() =>
+      this.portal.midgame({
+        onStart: () => {
+          shown = true;
+          this.audio.setAdMuted(true);
+        },
+      }),
+    );
+    this.analytics.track({ type: 'midgame', shown, durMs: performance.now() - t0 });
   }
 
   /** Back into the level from the pause menu or the level grid. */
@@ -347,6 +423,7 @@ export class Game {
   }
 
   private showMenu() {
+    this.analytics.track({ type: 'menu' });
     this.inMenus = true;
     this.level.suspend();
     this.win.hide();
@@ -432,46 +509,68 @@ export class Game {
     }
   }
 
-  private async rewarded(): Promise<boolean> {
+  private async rewarded(placement: Placement): Promise<boolean> {
+    this.analytics.track({ type: 'offer', placement, action: 'interact' });
     if (!this.portal.rewardedAvailable() || performance.now() < this.rewardedReadyAt) {
       this.hud.toast(NO_VIDEO, 2.5);
+      this.analytics.track({ type: 'offer', placement, action: 'result', result: 'no-fill', durMs: 0 });
       return false;
     }
-    const ok = await this.runAd(() => this.portal.rewarded({ onStart: () => this.audio.setAdMuted(true) }));
+    const t0 = performance.now();
+    let ok = false;
+    let failed = false;
+    try {
+      ok = await this.runAd(() => this.portal.rewarded({ onStart: () => this.audio.setAdMuted(true) }));
+    } catch {
+      failed = true;
+    }
+    this.analytics.track({ type: 'offer', placement, action: 'result', result: ok ? 'rewarded' : failed ? 'error' : 'no-fill', durMs: performance.now() - t0 });
     if (ok) this.rewardedReadyAt = performance.now() + REWARDED_COOLDOWN_S * 1000;
     else this.hud.toast(NO_VIDEO, 2.5);
     return ok;
   }
 
+  /** The HUD's hint button (or H). */
+  private tapHint() {
+    if (!this.level.playing || !this.level.hintsEnabled || this.inMenus) return;
+    this.analytics.track({ type: 'hint-button' });
+    this.openHints();
+  }
+
   private openHints() {
     if (!this.level.playing || !this.level.hintsEnabled || this.inMenus) return;
     this.level.suspend();
-    this.hintPanel.show({
+    const offers = this.hintPanel.show({
       bulbs: this.store.data.bulbs,
       freeHint: !this.store.data.freeHintUsed,
       adReady: this.portal.rewardedAvailable() && performance.now() >= this.rewardedReadyAt,
       adCooldown: Math.max(0, this.rewardedReadyAt - performance.now()) / 1000,
     });
+    this.analytics.track({ type: 'hint-panel', action: 'open' });
+    for (const placement of offers) this.analytics.track({ type: 'offer', placement, action: 'visible' });
   }
 
   private async buyHint(tier: HintTier, withAd: boolean) {
     let paid = false;
-    if (withAd) paid = await this.rewarded();
+    let paidWith: 'free' | 'bulb' | 'ad' = withAd ? 'ad' : 'bulb';
+    if (withAd) paid = await this.rewarded('hint-reveal');
     else if (!this.store.data.freeHintUsed) {
       this.store.data.freeHintUsed = true;
       this.store.save();
       paid = true;
+      paidWith = 'free';
     } else paid = this.store.spendBulbs(HINT_COST[tier]);
     this.hud.setBulbs(this.store.data.bulbs);
     this.level.resume();
     if (paid) {
-      if (import.meta.env.DEV) console.debug('[event] hint_used', { id: this.level.level.id, tier, paidWith: withAd ? 'ad' : 'bulbs' });
+      this.analytics.track({ type: 'hint', tier, paid: paidWith });
       this.level.useHint(tier);
     }
+    this.analytics.track({ type: 'hint-panel', action: 'close' });
   }
 
   private async watchForBulbs() {
-    if (await this.rewarded()) {
+    if (await this.rewarded('bulbs')) {
       this.store.addBulbs(BULBS.rewardedAd);
       this.hud.setBulbs(this.store.data.bulbs);
       this.hud.toast(`+${BULBS.rewardedAd} Bulbs`);
@@ -490,7 +589,7 @@ export class Game {
     if (this.mode === 'endless') return this.endlessSolved(r);
     const earned = this.store.recordSolve(r.level.id, r.stars, r.time);
     this.hud.setBulbs(this.store.data.bulbs);
-    if (import.meta.env.DEV) console.debug('[event] level_complete', { id: r.level.id, time: r.time, stars: r.stars, hints: r.hintsUsed, peakIou: r.peakIou });
+    this.analytics.track({ type: 'solved', stars: r.stars, timeS: r.time, bulbs: this.store.data.bulbs });
     this.win.show({
       title: r.level.targetName,
       stars: r.stars,
@@ -523,7 +622,7 @@ export class Game {
   private dailyComplete(r: LevelResult) {
     const earned = this.store.recordDaily(this.today, r.stars, r.time, r.hintsUsed);
     this.hud.setBulbs(this.store.data.bulbs);
-    if (import.meta.env.DEV) console.debug('[event] daily_complete', { date: this.today, time: r.time, stars: r.stars, hints: r.hintsUsed });
+    this.analytics.track({ type: 'solved', stars: r.stars, timeS: r.time, bulbs: this.store.data.bulbs });
     this.showDailyResult(earned);
   }
 
@@ -551,12 +650,14 @@ export class Game {
         { label: 'Menu', onClick: () => this.showMenu() },
       ],
     });
+    if (adReady && res.stars < 3 && !res.retried) this.analytics.track({ type: 'offer', placement: 'daily-retry', action: 'visible' });
+    if (adReady && !res.doubled) this.analytics.track({ type: 'offer', placement: 'daily-double', action: 'visible' });
   }
 
   private async shareDaily() {
+    this.analytics.track({ type: 'daily-share' });
     const res = this.store.data.daily.last!;
     const text = shareText(this.today, res.stars, res.time, res.hints, await this.dailyLink());
-    if (import.meta.env.DEV) console.debug('[event] daily_share', { date: this.today });
     this.hud.toast((await copyText(text)) ? 'Copied — paste it anywhere' : "Couldn't copy", 2);
   }
 
@@ -571,7 +672,7 @@ export class Game {
   /** Rewarded "second attempt at 3 stars": once per day; the better result is kept. */
   private async retryDaily() {
     this.card.hide();
-    if (await this.rewarded()) {
+    if (await this.rewarded('daily-retry')) {
       this.store.data.daily.last!.retried = true;
       this.store.save();
       this.playDaily();
@@ -581,7 +682,7 @@ export class Game {
   /** Rewarded "double reward": the base Bulbs were already paid. */
   private async doubleDaily() {
     this.card.hide();
-    if (await this.rewarded()) {
+    if (await this.rewarded('daily-double')) {
       this.store.data.daily.last!.doubled = true;
       this.store.addBulbs(BULBS.dailySolve);
       this.hud.setBulbs(this.store.data.bulbs);
@@ -602,9 +703,10 @@ export class Game {
   private endlessSolved(r: LevelResult) {
     const run = this.run!;
     const g = run.recordSolve(r.time);
+    this.analytics.track({ type: 'endless-solve', ms: r.time * 1000, score: run.score, mult: g.mult });
     this.hud.toast(`+${g.points}${g.mult > 1 ? ` (×${g.mult})` : ''} · +${g.bonus}s`);
     this.hud.setTimer(run.timeLeft);
-    this.load(run.nextTarget(), false);
+    this.load(run.nextTarget(), false, true);
   }
 
   /** Called every frame in Endless: the timer runs only while the player can actually turn the object. */
@@ -622,7 +724,7 @@ export class Game {
     this.arrow.hide();
     this.hud.showHand(null);
     this.endlessNewBest = this.store.recordEndless(run.score);
-    if (import.meta.env.DEV) console.debug('[event] endless_over', { score: run.score, solved: run.solved, continued: run.continued });
+    this.analytics.track({ type: 'endless-over', score: run.score, solves: run.solved });
     this.showEndlessOver();
   }
 
@@ -641,13 +743,15 @@ export class Game {
         { label: 'Menu', onClick: () => this.showMenu() },
       ],
     });
+    if (adReady && !run.continued) this.analytics.track({ type: 'offer', placement: 'endless-continue', action: 'visible' });
   }
 
   /** Rewarded continue, once per run, offered only on the game-over card. */
   private async endlessContinue() {
     this.card.hide();
     const run = this.run!;
-    if (await this.rewarded()) {
+    if (await this.rewarded('endless-continue')) {
+      this.analytics.track({ type: 'endless-continue' });
       run.continued = true;
       run.timeLeft = ENDLESS_CONTINUE_S;
       this.hud.setTimer(run.timeLeft);
@@ -681,7 +785,7 @@ export class Game {
         this.pause.hide();
         this.unpause();
       } else this.openPause();
-    } else if (code === 'KeyH') this.openHints();
+    } else if (code === 'KeyH') this.tapHint();
     else if (code === 'Tab') this.level.cycle();
     else if (/^Digit[1-9]$/.test(code) && this.level.isAssembly && this.level.playing) this.level.select(Number(code.slice(5)) - 1);
   }
@@ -717,6 +821,17 @@ export class Game {
     this.elapsed += dt;
     this.tweens.update(dt);
     this.level.update(dt);
+    const keys = this.input.keyAxes();
+    const arrows = this.input.arrowAxes();
+    this.analytics.track({
+      type: 'tick',
+      dt,
+      iou: this.level.score,
+      running: this.level.running,
+      suspended: this.level.isSuspended,
+      lamp: this.level.lampAngles,
+      busy: this.input.dragging || this.hud.lightDragging || !!(keys.yaw || keys.pitch || keys.roll || arrows.x || arrows.y),
+    });
     if (this.mode === 'endless') this.tickEndless(dt);
     this.win.update(dt);
     this.scene.update(dt, this.elapsed);

@@ -77,6 +77,10 @@ solution), and drag with `page.mouse` to verify input (the lamp pad is `.light-p
   plugin in `vite.config.ts`
 - `src/ui/` — HTML/CSS overlay (HUD, win screen, toasts)
 - `src/portal/` — `Portal` interface, `LocalPortal` (Netlify / dev), `PokiPortal` (`--mode poki`), `PokiMock` (dev only)
+- `src/analytics/Analytics.ts` — the only analytics entry point, `track(event)`: Poki `measure()` events (Layer A), one
+  `[casted] …` console line per attempt (A+), session / attempt / ad records (B). B is sent only when the build sets
+  `VITE_TELEMETRY_URL`; otherwise records stay in memory (`window.__castedAnalytics` in dev: `records`, `measures`,
+  `summaries`). Game code never calls `PokiSDK.measure` or `fetch` for analytics
 - `src/util/` — tweens, seeded RNG
 
 ## Conventions

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 
@@ -83,8 +83,11 @@ function pokiSdk(): Plugin {
   };
 }
 
+const VERSION = (JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }).version;
+
 export default defineConfig(({ mode }) => ({
   base: './',
+  define: { __CASTED_BUILD__: JSON.stringify(`${VERSION}-${mode === 'poki' ? 'poki' : 'web'}`) },
   plugins: [levelEditor(), ...(mode === 'poki' ? [pokiSdk()] : [])],
   build: { target: 'es2020', assetsInlineLimit: 0, chunkSizeWarningLimit: 800 },
   server: { host: true },

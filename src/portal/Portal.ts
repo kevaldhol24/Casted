@@ -18,6 +18,8 @@ export interface Portal {
   /** Rewarded buttons are disabled with a notice when false. */
   rewardedAvailable(): boolean;
   happyTime?(): void;
+  /** Poki game events (Analytics Layer A); only Analytics calls it. */
+  measure?(category: string, what: string, action: string): void;
   /** A link that opens the game with these params (the portal's own game page). */
   shareableURL?(params: Record<string, string | number>): Promise<string>;
   /** A param from the portal page's URL (set by shareableURL) or the game's own URL. */
