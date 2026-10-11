@@ -1,0 +1,21 @@
+{
+  "id": "w4-10",
+  "world": 4,
+  "targetName": "Owl & Cat",
+  "object": {
+    "kind": "model",
+    "url": "models/w4/owl_cat_prop.glb"
+  },
+  "scale": 1.3,
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [80, -75, -55],
+  "dual": {
+    "spread": 26
+  },
+  "threshold": 0.8,
+  "parTime": 70,
+  "allowMirror": false,
+  "reveal": "sway",
+  "endless": false,
+  "mask": "masks/w4-10.png"
+}

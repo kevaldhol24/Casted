@@ -1,0 +1,21 @@
+{
+  "id": "w4-11",
+  "world": 4,
+  "targetName": "Umbrella & Note",
+  "object": {
+    "kind": "model",
+    "url": "models/w4/umbrella_note_prop.glb"
+  },
+  "scale": 1.3,
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [-95, 80, 35],
+  "dual": {
+    "spread": 26
+  },
+  "threshold": 0.82,
+  "parTime": 75,
+  "allowMirror": false,
+  "reveal": "strum",
+  "endless": false,
+  "mask": "masks/w4-11.png"
+}

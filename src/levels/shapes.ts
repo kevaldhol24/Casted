@@ -852,7 +852,81 @@ function comedyMask(): Silhouette {
   return [face];
 }
 
+/** Tragedy mask: the comedy mask's face with eyes slanting down and a frown. */
+function tragedyMask(): Silhouette {
+  const face = ellipse(0, 0, 0.78, 0.95);
+  const eye = (x: number) => {
+    const p = new THREE.Path();
+    p.absellipse(x, 0.2, 0.17, 0.1, 0, Math.PI * 2, true, x < 0 ? -0.4 : 0.4);
+    return p;
+  };
+  const frown = new THREE.Path();
+  frown.moveTo(-0.42, -0.52);
+  frown.quadraticCurveTo(0, -0.06, 0.42, -0.52);
+  frown.quadraticCurveTo(0, -0.24, -0.42, -0.52);
+  face.holes.push(eye(-0.32), eye(0.32), frown);
+  return [face];
+}
+
+/** Skull: round cranium with eye sockets and a nose hole, square jaw. */
+function skull(): Silhouette {
+  const head = circle(0, 0.25, 0.75);
+  head.holes.push(hole(-0.28, 0.17, 0.17), hole(0.28, 0.17, 0.17));
+  const nose = new THREE.Path();
+  nose.moveTo(0, 0.02);
+  nose.lineTo(0.09, -0.15);
+  nose.lineTo(-0.09, -0.15);
+  nose.closePath();
+  head.holes.push(nose);
+  return [head, rect(-0.42, -0.78, 0.42, -0.22)];
+}
+
+function sword(): Silhouette {
+  return [
+    poly([[-0.075, -0.36], [0.075, -0.36], [0.075, 0.8], [0, 1.0], [-0.075, 0.8]]),
+    rect(-0.42, -0.44, 0.42, -0.32),
+    rect(-0.05, -0.84, 0.05, -0.42),
+    circle(0, -0.9, 0.1),
+  ];
+}
+
+function bell(): Silhouette {
+  return [
+    poly([[-0.78, -0.6], [0.78, -0.6], [0.64, -0.46], [0.54, 0.3], [0.4, 0.6], [0.2, 0.72], [-0.2, 0.72], [-0.4, 0.6], [-0.54, 0.3], [-0.64, -0.46]]),
+    circle(0, -0.72, 0.15),
+    ring(0, 0.86, 0.18, 0.08),
+  ];
+}
+
+/** Candle in a dish: body, wick and a teardrop flame (the wick joins them, so no row is empty). */
+function candle(): Silhouette {
+  const flame = new THREE.Shape();
+  flame.moveTo(0, 0.98);
+  flame.quadraticCurveTo(0.2, 0.7, 0.12, 0.56);
+  flame.quadraticCurveTo(0, 0.44, -0.12, 0.56);
+  flame.quadraticCurveTo(-0.2, 0.7, 0, 0.98);
+  return [rect(-0.22, -0.7, 0.22, 0.42), rect(-0.025, 0.38, 0.025, 0.56), flame, ellipse(0, -0.76, 0.6, 0.12), ring(0.66, -0.66, 0.16, 0.08)];
+}
+
+/** Rose: a round bloom with petal bumps on a curved stem with two leaves. */
+function rose(): Silhouette {
+  const parts: Silhouette = [circle(0, 0.5, 0.36)];
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + 0.3;
+    parts.push(circle(Math.cos(a) * 0.3, 0.5 + Math.sin(a) * 0.3, 0.16));
+  }
+  parts.push(curve([[0, 0.18], [0.12, -0.3], [-0.08, -0.6], [0.04, -0.98]], 0.08));
+  parts.push(ellipse(-0.24, -0.32, 0.22, 0.08, 0.5), ellipse(0.24, -0.55, 0.22, 0.08, -0.5));
+  return parts;
+}
+
 export const SILHOUETTES: Record<string, () => Silhouette> = {
+  tragedyMask,
+  skull,
+  sword,
+  bell,
+  candle,
+  rose,
   topHat,
   moon,
   crown,

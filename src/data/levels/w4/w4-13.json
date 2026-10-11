@@ -1,0 +1,21 @@
+{
+  "id": "w4-13",
+  "world": 4,
+  "targetName": "Rocket & Moon",
+  "object": {
+    "kind": "model",
+    "url": "models/w4/rocket_moon_prop.glb"
+  },
+  "scale": 1.3,
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [-80, -85, 60],
+  "dual": {
+    "spread": 26
+  },
+  "threshold": 0.82,
+  "parTime": 80,
+  "allowMirror": false,
+  "reveal": "spin",
+  "endless": false,
+  "mask": "masks/w4-13.png"
+}

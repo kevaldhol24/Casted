@@ -1,0 +1,21 @@
+{
+  "id": "w4-14",
+  "world": 4,
+  "targetName": "Crown & Sword",
+  "object": {
+    "kind": "model",
+    "url": "models/w4/crown_sword_prop.glb"
+  },
+  "scale": 1.3,
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [95, -70, -50],
+  "dual": {
+    "spread": 26
+  },
+  "threshold": 0.82,
+  "parTime": 85,
+  "allowMirror": false,
+  "reveal": "tilt",
+  "endless": false,
+  "mask": "masks/w4-14.png"
+}

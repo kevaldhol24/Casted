@@ -1,0 +1,21 @@
+{
+  "id": "w4-15",
+  "world": 4,
+  "targetName": "Dragonfly & Deer",
+  "object": {
+    "kind": "model",
+    "url": "models/w4/dragonfly_deer_prop.glb"
+  },
+  "scale": 1.3,
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [-90, 90, -60],
+  "dual": {
+    "spread": 26
+  },
+  "threshold": 0.82,
+  "parTime": 90,
+  "allowMirror": false,
+  "reveal": "flap",
+  "endless": false,
+  "mask": "masks/w4-15.png"
+}

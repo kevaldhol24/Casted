@@ -1,0 +1,21 @@
+{
+  "id": "w4-07",
+  "world": 4,
+  "targetName": "Skull & Sword",
+  "object": {
+    "kind": "model",
+    "url": "models/w4/skull_sword_prop.glb"
+  },
+  "scale": 1.286,
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [-85, 70, 50],
+  "dual": {
+    "spread": 26
+  },
+  "threshold": 0.8,
+  "parTime": 65,
+  "allowMirror": false,
+  "reveal": "tilt",
+  "endless": false,
+  "mask": "masks/w4-07.png"
+}
