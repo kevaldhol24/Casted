@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import type { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import dracoWasmUrl from 'three/examples/jsm/libs/draco/gltf/draco_decoder.wasm?url';
+import dracoWrapperUrl from 'three/examples/jsm/libs/draco/gltf/draco_wasm_wrapper.js?url';
 import { junkify } from './junkify';
 import { levelPieces, type LevelDef, type LevelObject } from './levels';
 import { SILHOUETTES } from './shapes';
@@ -25,6 +27,8 @@ const proceduralMat = new THREE.MeshStandardMaterial({ vertexColors: true, rough
  */
 export class LevelLoader {
   private loader: Promise<GLTFLoader> | null = null;
+  /** The Draco decoder is fetched by preload() (once a level is playing), not at boot: level 1 needs none. */
+  private draco: { preload(): unknown } | null = null;
   private models = new Map<string, Promise<THREE.Object3D>>();
 
   /** @param palette procedural object colours (the world's palette; load() can override per level). */
@@ -41,8 +45,9 @@ export class LevelLoader {
     return { root: template.clone(true), dispose() {} };
   }
 
-  /** Start fetching a level's models in the background (the next level, while this one plays). */
+  /** Start fetching a level's models, and the Draco decoder, in the background (the next level, while this one plays). */
   preload(level: LevelDef | undefined) {
+    void this.gltf().then(() => this.draco?.preload());
     if (!level) return;
     for (const p of levelPieces(level)) if (p.object.kind === 'model') this.model(p.object.url).catch(() => {});
   }
@@ -54,12 +59,19 @@ export class LevelLoader {
     return { root: prepare(new THREE.Mesh(geo, proceduralMat)), dispose: () => geo.dispose() };
   }
 
-  /** Load a GLB by site-relative URL (cached). */
+  /**
+   * Load a GLB by site-relative URL (cached). The file downloads while the loader chunks and the Draco decoder do,
+   * instead of after them: on a slow connection each step costs a round trip.
+   */
   model(url: string): Promise<THREE.Object3D> {
     let p = this.models.get(url);
     if (!p) {
-      p = this.gltf()
-        .then((l) => l.loadAsync(import.meta.env.BASE_URL + url))
+      const bytes = fetch(import.meta.env.BASE_URL + url).then((r) => {
+        if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
+        return r.arrayBuffer();
+      });
+      p = Promise.all([this.gltf(), bytes])
+        .then(([l, buf]) => l.parseAsync(buf, ''))
         .then((g) => normalizeModel(g.scene));
       p.catch(() => this.models.delete(url));
       this.models.set(url, p);
@@ -76,8 +88,14 @@ export class LevelLoader {
 
   private gltf(): Promise<GLTFLoader> {
     this.loader ??= Promise.all([import('three/addons/loaders/GLTFLoader.js'), import('three/addons/loaders/DRACOLoader.js')]).then(
-      // DRACOLoader finds its decoder through import.meta.url; Vite bundles those files, fetched only on first use.
-      ([{ GLTFLoader }, { DRACOLoader }]) => new GLTFLoader().setDRACOLoader(new DRACOLoader()),
+      // Only the glTF WASM decoder ships (bundled by the ?url imports above, fetched on first use); vite.config.ts
+      // drops DRACOLoader's default decoder files, including the asm.js fallback no supported browser needs.
+      // The decoder itself downloads on the first Draco model or on preload(), whichever comes first.
+      ([{ GLTFLoader }, { DRACOLoader }]) => {
+        const draco = new DRACOLoader().setDecoderPath({ js: dracoWrapperUrl, wasm: dracoWasmUrl });
+        this.draco = draco;
+        return new GLTFLoader().setDRACOLoader(draco);
+      },
     );
     return this.loader;
   }

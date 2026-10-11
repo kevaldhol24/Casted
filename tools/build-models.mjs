@@ -13,8 +13,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as THREE from 'three';
 import { Document, NodeIO } from '@gltf-transform/core';
-import { KHRDracoMeshCompression } from '@gltf-transform/extensions';
-import { draco, weld } from '@gltf-transform/functions';
+import { KHRDracoMeshCompression, KHRMeshQuantization } from '@gltf-transform/extensions';
+import { draco, quantize, weld } from '@gltf-transform/functions';
 import draco3d from 'draco3dgltf';
 import { rasterize } from './models/kit.mjs';
 import { W1_MODELS } from './models/w1.mjs';
@@ -56,17 +56,29 @@ function chunk(type, data) {
 }
 /** Mask PNG like the level editor's: shape opaque white, background transparent, top row first. */
 function maskPng(bits, size) {
-  const raw = Buffer.alloc(size * (size * 4 + 1));
+  // 1-bit palette PNG: index 0 = transparent, 1 = opaque white (the Album masks with the alpha channel). About a
+  // third the size of the RGBA version, which Poki Inspector flagged under "Image optimization".
+  const stride = Math.ceil(size / 8) + 1;
+  const raw = Buffer.alloc(size * stride);
   for (let y = 0; y < size; y++) {
-    const row = (size - 1 - y) * (size * 4 + 1);
-    for (let x = 0; x < size; x++) if (bits[y * size + x]) raw.fill(255, row + 1 + x * 4, row + 5 + x * 4);
+    const row = (size - 1 - y) * stride;
+    for (let x = 0; x < size; x++) if (bits[y * size + x]) raw[row + 1 + (x >> 3)] |= 0x80 >> (x & 7);
   }
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(size, 0);
   ihdr.writeUInt32BE(size, 4);
-  ihdr[8] = 8;
-  ihdr[9] = 6;
-  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+  ihdr[8] = 1; // bit depth
+  ihdr[9] = 3; // palette
+  const plte = Buffer.from([0, 0, 0, 255, 255, 255]);
+  const trns = Buffer.from([0, 255]);
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk('IHDR', ihdr),
+    chunk('PLTE', plte),
+    chunk('tRNS', trns),
+    chunk('IDAT', deflateSync(raw, { level: 9 })),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
 }
 
 /** Same pretty-printing as the level editor's save endpoint (vite.config.ts). */
@@ -74,7 +86,7 @@ const formatJson = (v) => JSON.stringify(v, null, 2).replace(/\[\n\s+([^[\]{}]*?
 const round = (v, d = 4) => Math.round(v * 10 ** d) / 10 ** d;
 
 // --- model helpers --------------------------------------------------------------------------------
-const io = new NodeIO().registerExtensions([KHRDracoMeshCompression]).registerDependencies({
+const io = new NodeIO().registerExtensions([KHRDracoMeshCompression, KHRMeshQuantization]).registerDependencies({
   'draco3d.encoder': await draco3d.createEncoderModule(),
   'draco3d.decoder': await draco3d.createDecoderModule(),
 });
@@ -109,8 +121,14 @@ function analyse(model) {
   return { all, center, radius, extra };
 }
 
-/** glTF: one primitive per colour, flat normals, Draco. */
-async function writeGlb(rel, name, model) {
+/**
+ * World 1's first level: a new player's first load. It is quantized instead of Draco-compressed, so three's
+ * GLTFLoader reads it with no decoder download (the decoder then loads in the background for later levels).
+ */
+const NO_DECODER = new Set(['w1-01']);
+
+/** glTF: one primitive per colour, flat normals, Draco (or plain quantized meshes, `quantized`). */
+async function writeGlb(rel, name, model, quantized = false) {
   const doc = new Document();
   const buffer = doc.createBuffer();
   const mesh = doc.createMesh(name);
@@ -121,7 +139,8 @@ async function writeGlb(rel, name, model) {
     mesh.addPrimitive(doc.createPrimitive().setAttribute('POSITION', acc('position')).setAttribute('NORMAL', acc('normal')).setMaterial(mat));
   }
   doc.createScene(name).addChild(doc.createNode(name).setMesh(mesh));
-  await doc.transform(weld(), draco({ method: 'edgebreaker' }));
+  if (quantized) await doc.transform(weld(), quantize({ quantizePosition: 14, quantizeNormal: 10 }));
+  else await doc.transform(weld(), draco({ method: 'edgebreaker' }));
   const glb = await io.writeBinary(doc);
   write(rel, glb);
   return glb.byteLength;
@@ -156,7 +175,7 @@ for (const [id, def] of Object.entries(W1_MODELS)) {
   const { all, center, radius, extra } = analyse(model);
   const s = MODEL_RADIUS / radius;
   const m = maskOf(all.map((g) => g.clone().translate(-center.x, -center.y, -center.z).scale(s, s, s)));
-  const bytes = await writeGlb(`public/models/w1/${def.name}.glb`, def.name, model);
+  const bytes = await writeGlb(`public/models/w1/${def.name}.glb`, def.name, model, NO_DECODER.has(id));
   write(`public/masks/${id}.png`, maskPng(m.mask, MASK_SIZE));
 
   const jsonPath = `src/data/levels/w1/${id}.json`;

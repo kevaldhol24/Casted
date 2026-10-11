@@ -7,7 +7,7 @@
     "dev": "vite",
     "dev:poki": "vite --mode poki",
     "build": "tsc --noEmit && vite build",
-    "build:poki": "tsc --noEmit && vite build --mode poki --outDir dist-poki",
+    "build:poki": "tsc --noEmit && vite build --mode poki --outDir dist-poki && node tools/zip-build.mjs dist-poki poki",
     "preview": "vite preview",
     "models": "node --experimental-strip-types --disable-warning=ExperimentalWarning tools/build-models.mjs"
   },
@@ -22,6 +22,7 @@
     "@gltf-transform/functions": "^4.5.1",
     "@types/three": "^0.186.0",
     "draco3dgltf": "^1.5.7",
+    "fflate": "^0.8.3",
     "typescript": "~5.9.0",
     "vite": "^8.3.3"
   }

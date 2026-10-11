@@ -83,13 +83,31 @@ function pokiSdk(): Plugin {
   };
 }
 
+/**
+ * DRACOLoader points at its default decoders with `new URL('../libs/draco/…', import.meta.url)`, which makes Vite
+ * bundle all five files (~1.3 MB, incl. a 719 KB asm.js fallback). LevelLoader sets the glTF WASM decoder itself, so
+ * blank those defaults and only the two files it imports ship.
+ */
+function dracoDefaultsOff(): Plugin {
+  return {
+    name: 'casted-draco-defaults-off',
+    apply: 'build',
+    transform(code, id) {
+      if (!/[\\/]three[\\/]examples[\\/]jsm[\\/]loaders[\\/]DRACOLoader\.js$/.test(id)) return null;
+      const out = code.replace(/new URL\(\s*'\.\.\/libs\/draco\/[^']+',\s*import\.meta\.url\s*\)\.toString\(\)/g, "''");
+      if (out === code) this.warn('DRACOLoader default decoder URLs not found; the unused decoders will ship');
+      return { code: out, map: null };
+    },
+  };
+}
+
 const VERSION = (JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 export default defineConfig(({ mode }) => ({
   base: './',
   define: { __CASTED_BUILD__: JSON.stringify(`${VERSION}-${mode === 'poki' ? 'poki' : 'web'}`) },
-  plugins: [levelEditor(), ...(mode === 'poki' ? [pokiSdk()] : [])],
-  build: { target: 'es2020', assetsInlineLimit: 0, chunkSizeWarningLimit: 800 },
+  plugins: [levelEditor(), dracoDefaultsOff(), ...(mode === 'poki' ? [pokiSdk()] : [])],
+  build: { target: 'es2020', assetsInlineLimit: 0, chunkSizeWarningLimit: 900 },
   server: { host: true },
   // Model loaders are imported lazily; pre-bundle them so the first model level doesn't hit a dev re-optimise (504).
   optimizeDeps: { include: ['three/addons/loaders/GLTFLoader.js', 'three/addons/loaders/DRACOLoader.js'] },

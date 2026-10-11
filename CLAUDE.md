@@ -39,8 +39,9 @@ Never add Claude/AI attribution (no `Co-Authored-By`, no "Generated with Claude 
 - `npm run dev:poki` — dev server in Poki mode: `PokiPortal` against a logging `window.PokiSDK` mock
   (`src/portal/PokiMock.ts`; `window.__pokiLog` holds the ordered calls, the corner button or `?rewarded=fail` makes
   rewarded breaks fail)
-- `npm run build:poki` — Poki build into `dist-poki/`: same game plus the Poki SDK script tag (its only off-bundle
-  request). Every other build uses `LocalPortal`
+- `npm run build:poki` — Poki build into `dist-poki/` (drag into Poki Inspector) plus `release/casted-poki-<version>.zip`
+  for upload: same game plus the Poki SDK script tag (its only off-bundle request). `tools/zip-build.mjs` fails the
+  build if a path isn't relative or anything loads from another host. Every other build uses `LocalPortal`
 - `npm run models` — rebuild the authored models from `tools/models/` (`kit.mjs` shatter/junk tools, `w1.mjs`,
   `w2.mjs`, `w3.mjs`) → `public/models/w<N>/*.glb` (Draco) + `public/masks/*.png`. World 1: points the level JSONs at
   the models (other fields kept). Worlds 2 and 3: write the whole level JSON from `w2.mjs` / `w3.mjs` (World 2 piece
@@ -107,6 +108,11 @@ solution), and drag with `page.mouse` to verify input (the lamp pad is `.light-p
   solution lamp's view); omitted = identity.
   GLB models are normalised to a bounding-sphere radius of 1.3 by `normalizeModel`, in both the editor and the game.
 - Keep Vite `base: './'` (portals require relative paths).
+- First load (Phase 3b Step 5): level 1's model (`w1-01`) is quantized, not Draco (`NO_DECODER` in
+  `tools/build-models.mjs`), and preloaded from `index.html`; the Draco decoder (glTF WASM build only, the defaults are
+  stripped by a plugin in `vite.config.ts`) downloads in the background once a level is playing. `main.ts` doesn't
+  wait for `PokiSDK.init()`; `PokiPortal` queues SDK calls until init settles (Poki's core logs "not yet booted"
+  otherwise). If level 1's model changes, update the preload link in `index.html`.
 - Poki only (CrazyGames dropped). Ad breaks go through `Game.adBreak()` (commercial break before every gameplayStart
   the player asked for, from level 3, never on the session's first transition) and `Game.rewarded()`; both run inside
   `runAd()`, which mutes, blocks all input and suspends the level. `LevelController.suspend()/resume()` fire
