@@ -1,0 +1,21 @@
+{
+  "id": "w4-02",
+  "world": 4,
+  "targetName": "Hat & Rabbit",
+  "object": {
+    "kind": "model",
+    "url": "models/w4/hat_rabbit_prop.glb"
+  },
+  "scale": 1.3,
+  "freeAxes": ["x", "y"],
+  "startOffset": [55, -95, 0],
+  "dual": {
+    "spread": 26
+  },
+  "threshold": 0.8,
+  "parTime": 40,
+  "allowMirror": false,
+  "reveal": "hop",
+  "endless": false,
+  "mask": "masks/w4-02.png"
+}

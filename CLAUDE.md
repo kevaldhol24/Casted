@@ -42,10 +42,11 @@ Never add Claude/AI attribution (no `Co-Authored-By`, no "Generated with Claude 
 - `npm run build:poki` — Poki build into `dist-poki/` (drag into Poki Inspector) plus `release/casted-poki-<version>.zip`
   for upload: same game plus the Poki SDK script tag (its only off-bundle request). `tools/zip-build.mjs` fails the
   build if a path isn't relative or anything loads from another host. Every other build uses `LocalPortal`
-- `npm run models` — rebuild the authored models from `tools/models/` (`kit.mjs` shatter/junk tools, `w1.mjs`,
-  `w2.mjs`, `w3.mjs`) → `public/models/w<N>/*.glb` (Draco) + `public/masks/*.png`. World 1: points the level JSONs at
-  the models (other fields kept). Worlds 2 and 3: write the whole level JSON from `w2.mjs` / `w3.mjs` (World 2 piece
-  offsets/scales computed; World 3 lamp solution/start copied)
+- `npm run models` — rebuild the authored models from `tools/models/` (`kit.mjs` shatter/junk/dual-shadow tools,
+  `w1.mjs` … `w4.mjs`) → `public/models/w<N>/*.glb` (Draco) + `public/masks/*.png`; `npm run models -- 4` rebuilds
+  only World 4 (any list of worlds). World 1: points the level JSONs at the models (other fields kept). Worlds 2–4:
+  write the whole level JSON from `w2.mjs` / `w3.mjs` / `w4.mjs` (World 2 piece offsets/scales computed; World 3 lamp
+  solution/start copied; World 4 object scale computed, mask PNG = both shadows side by side)
 
 Level editor (dev only, never built): `npm run dev`, then open http://localhost:5173/tools/level-editor.html.
 Load a GLB (Draco OK) or an existing level, rotate to the solution, "Set solution here", fill the form, "Save to project"
@@ -72,7 +73,7 @@ solution), and drag with `page.mouse` to verify input (the lamp pad is `.light-p
   `shapes.ts` (2D silhouettes), `junkify.ts` (procedural junk objects),
   `LevelController.ts` (state machine: intro → playing → snapping → reveal → win),
   `Daily.ts` (date-seeded Daily Shadow, share text), `Endless.ts` (run timer/score, target generator);
-  world palettes (`ATTIC`, `KITCHEN`, `WORKSHOP`) and the lamp range (`LIGHT_RANGE`, `lightDirection`) live in
+  world palettes (`ATTIC`, `KITCHEN`, `WORKSHOP`, `THEATRE`) and the lamp range (`LIGHT_RANGE`, `lightDirection`) live in
   `src/shadow/ShadowScene.ts`
 - `src/tools/LevelEditor.ts` + `tools/level-editor.html` — dev-only level editor; its save endpoint is a dev-server
   plugin in `vite.config.ts`
@@ -104,6 +105,12 @@ solution), and drag with `page.mouse` to verify input (the lamp pad is `.light-p
   shadow over the outline. A degree of lamp slides the shadow ~0.07 units, so the lamp positions the shadow and the
   object's rotation sets its shape. `freeAxes: []` = only the lamp moves (a drag anywhere moves it). Arrow keys move
   the lamp, WASD/QE turn the object.
+- Dual-shadow levels (World 4) have `dual: {spread}`: two fixed lamps `spread`° either side of the default light
+  (turned about its view's up), each with its own mask camera (`Ctx.dualMasks`), target and outline. The score is the
+  lower IoU (`LevelController.scores` has both); the HUD shows it plus a meter per lamp. A lamp's shadow is lit only
+  by the other lamp, so it takes that lamp's colour; its outline matches (stripes = left, dots = right). The default
+  light's mask camera still sets the frame (arcball, `solution`). Objects come from `Model.dualShadow()` (both
+  outlines scaled to one height, cut into slabs, one block per run pair); `scale` on the level enlarges the model.
 - Level `solution` quaternions are stored in light space (relative to the mask camera; for light levels, the
   solution lamp's view); omitted = identity.
   GLB models are normalised to a bounding-sphere radius of 1.3 by `normalizeModel`, in both the editor and the game.

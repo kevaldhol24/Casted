@@ -1,0 +1,21 @@
+{
+  "id": "w4-04",
+  "world": 4,
+  "targetName": "Note & Guitar",
+  "object": {
+    "kind": "model",
+    "url": "models/w4/note_guitar_prop.glb"
+  },
+  "scale": 1.3,
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [-65, 90, 40],
+  "dual": {
+    "spread": 26
+  },
+  "threshold": 0.8,
+  "parTime": 55,
+  "allowMirror": false,
+  "reveal": "strum",
+  "endless": false,
+  "mask": "masks/w4-04.png"
+}

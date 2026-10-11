@@ -2,6 +2,7 @@ import * as THREE from 'three';
 
 /** Layer the object root's meshes join so the mask camera renders nothing else. */
 export const MASK_LAYER = 1;
+const UP = new THREE.Vector3(0, 1, 0);
 
 /**
  * Renders the object's silhouette as the light sees it: white on black, orthographic (directional light),
@@ -24,10 +25,10 @@ export class MaskRenderer {
     this.camera.layers.set(MASK_LAYER);
   }
 
-  /** Point the mask camera down the light direction, centred on `center`. */
-  aim(center: THREE.Vector3, lightDir: THREE.Vector3) {
+  /** Point the mask camera down the light direction, centred on `center`, with `up` as the picture's up. */
+  aim(center: THREE.Vector3, lightDir: THREE.Vector3, up: THREE.Vector3 = UP) {
     this.camera.position.copy(center).addScaledVector(lightDir, -15);
-    this.camera.up.set(0, 1, 0);
+    this.camera.up.copy(up);
     this.camera.lookAt(center);
     this.camera.updateMatrixWorld();
   }
@@ -83,6 +84,11 @@ export class MaskRenderer {
 
   private asyncTarget: { rt: THREE.WebGLRenderTarget; pixels: Uint8Array; size: number } | null = null;
   private asyncBusy = false;
+
+  /** An async read is in flight (renderAsync would return null). */
+  get busy() {
+    return this.asyncBusy;
+  }
 
   /**
    * Live scoring path: renders now, reads back without stalling the GPU (WebGL2 pixel buffer + fence).

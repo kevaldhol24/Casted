@@ -3,7 +3,7 @@ import { LevelController, SCORE_SIZE, type LevelResult } from '../levels/LevelCo
 import { dailyLevel, dailyNumber, shareText, utcDate } from '../levels/Daily';
 import { ENDLESS_CONTINUE_S, EndlessRun } from '../levels/Endless';
 import { LevelLoader } from '../levels/LevelLoader';
-import { HINTS_FROM_LEVEL, LEVELS, type LevelDef } from '../levels/levels';
+import { HINTS_FROM_LEVEL, LEVELS, levelPieces, type LevelDef } from '../levels/levels';
 import { MODE_UNLOCKS, WORLDS, unlockText, type WorldDef } from '../levels/worlds';
 import type { Portal } from '../portal/Portal';
 import { MaskRenderer } from '../shadow/MaskRenderer';
@@ -95,17 +95,11 @@ export class Game {
     this.renderer = new Renderer(canvas);
     this.scene = new ShadowScene(ATTIC, TIERS[this.tier].shadowMap);
     const mask = new MaskRenderer(this.renderer.gl, this.scene.scene, 1.45);
-
-    // Keep the floating object and the whole solved-shadow area on screen.
-    const sc = this.scene.shadowCenter();
-    const r = 1.25;
-    this.renderer.setFocus([
-      OBJECT_POS.clone().add(new THREE.Vector3(-r, -r, 0)),
-      OBJECT_POS.clone().add(new THREE.Vector3(r, -r, 0)),
-      sc.clone().add(new THREE.Vector3(-r, r, 0)),
-      sc.clone().add(new THREE.Vector3(r, r, 0)),
-      sc.clone().add(new THREE.Vector3(-r, -r, 0)),
-    ]);
+    const dualMasks: [MaskRenderer, MaskRenderer] = [
+      new MaskRenderer(this.renderer.gl, this.scene.scene, 1.45),
+      new MaskRenderer(this.renderer.gl, this.scene.scene, 1.45),
+    ];
+    this.fitView();
 
     // DOM order = stacking order: HUD under the menus, panels on top.
     ui.append(this.vignette);
@@ -150,6 +144,7 @@ export class Game {
       renderer: this.renderer,
       scene: this.scene,
       mask,
+      dualMasks,
       arcball,
       input: this.input,
       hud: this.hud,
@@ -338,6 +333,21 @@ export class Game {
     this.load(LEVELS[i], false);
   }
 
+  /**
+   * Keep the floating object and every solved-shadow area on screen (two on dual-shadow levels). `objectScale`:
+   * the level's object size (dual-shadow objects are bigger).
+   */
+  private fitView(objectScale = 1) {
+    const r = 1.25;
+    const ro = r * Math.max(1, objectScale);
+    const v = (p: THREE.Vector3, x: number, y: number) => p.clone().add(new THREE.Vector3(x, y, 0));
+    const points = [v(OBJECT_POS, -ro, -ro), v(OBJECT_POS, ro, -ro)];
+    for (const sc of this.scene.shadowCenters()) points.push(v(sc, -r, r), v(sc, r, r), v(sc, -r, -r), v(sc, r, -r));
+    this.renderer.setFocus(points);
+    // The fog fades the room's far edges; a camera backed off to fit two shadows (portrait) mustn't sink into it.
+    this.scene.fogFrom(this.renderer.distance);
+  }
+
   /** Leave whatever was on screen and set up the HUD for a mode. */
   private enter(mode: Mode) {
     this.mode = mode;
@@ -361,6 +371,7 @@ export class Game {
       this.scene.setWorld(palette);
       // The player may have opened the menu while a model was downloading.
       this.level.start(level, objs, suspended || this.inMenus);
+      this.fitView(levelPieces(level)[0].scale);
       if (endlessTarget) this.analytics.track({ type: 'target', level });
       else
         this.analytics.track({

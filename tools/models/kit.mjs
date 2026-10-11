@@ -26,6 +26,11 @@ export const C = {
   // Workshop tools and paint
   orange: '#b8713a',
   teal: '#5f7f7c',
+  // Theatre props
+  velvet: '#8e3a3e',
+  gold: '#c4a052',
+  ivory: '#ddd0b2',
+  ebony: '#4a3a33',
 };
 
 /** Mulberry32 (same as src/util/rng.ts): a model rebuilds identically from its seed. */
@@ -201,6 +206,36 @@ function plate(tris, z, th) {
   return g;
 }
 
+/** The runs [x0, x1] where `inside` holds along the row at height y, for x within ±width; edges found by bisection. */
+function runs(inside, y, width, steps = 520) {
+  const out = [];
+  const dx = (2 * width) / steps;
+  const edge = (lo, hi, rising) => {
+    for (let k = 0; k < 14; k++) {
+      const m = (lo + hi) / 2;
+      if (inside(m, y) === rising) hi = m;
+      else lo = m;
+    }
+    return (lo + hi) / 2;
+  };
+  let start = null;
+  let prev = inside(-width, y);
+  if (prev) start = -width;
+  for (let i = 1; i <= steps; i++) {
+    const x = -width + i * dx;
+    const now = inside(x, y);
+    if (now && !prev) start = edge(x - dx, x, true);
+    if (!now && prev) {
+      const end = edge(x - dx, x, false);
+      if (end - start > 0.004) out.push([start, end]);
+      start = null;
+    }
+    prev = now;
+  }
+  if (start !== null) out.push([start, width]);
+  return out;
+}
+
 // --- junk ------------------------------------------------------------------------------------------
 
 /** Attic clutter, each built with its long axis along Y (junkify turns it to run along Z). */
@@ -329,6 +364,59 @@ export class Model {
       this.parts.push({ geo: rod([p.at.x, p.at.y, p.z], [p.at.x, p.at.y, other.z], rad, 6), color: C.tin, core: false });
     }
     return this;
+  }
+
+  /**
+   * World 4 dual shadows: one solid whose shadow is silhouette A from lamp A and silhouette B from lamp B. The lamps
+   * travel along (∓sin s, 0, -cos s) (`spread` = s in degrees, either side of the middle light, which looks down
+   * -Z). Lamp A sees u = x cos s - z sin s, lamp B u = x cos s + z sin s, both with y up. Each horizontal slab of
+   * the two outlines becomes one block per pair of runs (A run × B run), so each lamp's shadow is exactly its row
+   * of the silhouette. The block's sides are planes, so a run that widens through the slab stays exact (only the
+   * rows where an outline changes topology are cut square). Both outlines must cover every row between their
+   * common top and bottom: the caller scales them to the same height.
+   *
+   * @param a inside test of outline A (x, y) → boolean, already in the shared frame (y within ±1)
+   * @param b the same for B
+   */
+  dualShadow(a, b, { spread, rows = 72, colors, band = 6, width = 1.3 }) {
+    const s = Math.sin(THREE.MathUtils.degToRad(spread));
+    const c = Math.cos(THREE.MathUtils.degToRad(spread));
+    const P = (ua, ub, y) => [(ua + ub) / (2 * c), y, (ub - ua) / (2 * s)];
+    const eps = 1e-4;
+    const lost = { a: 0, b: 0 };
+    for (let r = 0; r < rows; r++) {
+      const y0 = -1 + (2 * r) / rows;
+      const y1 = -1 + (2 * (r + 1)) / rows;
+      const ym = (y0 + y1) / 2;
+      const runsOf = (inside) => {
+        const lo = runs(inside, y0 + eps, width);
+        const hi = runs(inside, y1 - eps, width);
+        if (lo.length && lo.length === hi.length) return lo.map((l, i) => [l, hi[i]]);
+        return runs(inside, ym, width).map((m) => [m, m]);
+      };
+      const ra = runsOf(a);
+      const rb = runsOf(b);
+      if (!ra.length || !rb.length) {
+        if (ra.length) lost.a++;
+        if (rb.length) lost.b++;
+        continue;
+      }
+      const pos = [];
+      for (const [aLo, aHi] of ra)
+        for (const [bLo, bHi] of rb) {
+          // Corners: bottom ring at y0 (runs at the slab's bottom), top ring at y1.
+          const B = [P(aLo[0], bLo[0], y0), P(aLo[1], bLo[0], y0), P(aLo[1], bLo[1], y0), P(aLo[0], bLo[1], y0)];
+          const T = [P(aHi[0], bHi[0], y1), P(aHi[1], bHi[0], y1), P(aHi[1], bHi[1], y1), P(aHi[0], bHi[1], y1)];
+          const quad = (p, q, r2, t) => pos.push(...p, ...q, ...r2, ...p, ...r2, ...t);
+          quad(B[0], B[3], B[2], B[1]);
+          quad(T[0], T[1], T[2], T[3]);
+          for (let k = 0; k < 4; k++) quad(B[k], B[(k + 1) % 4], T[(k + 1) % 4], T[k]);
+        }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      this.parts.push({ geo: g, color: colors[Math.floor(r / band) % colors.length], core: true });
+    }
+    return lost;
   }
 
   /** One flat-shaded, non-indexed geometry per colour. */

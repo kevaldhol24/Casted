@@ -57,7 +57,10 @@ export interface LevelResult {
 interface Ctx {
   renderer: Renderer;
   scene: ShadowScene;
+  /** The default light's view: scores one-lamp levels, and its frame is the arcball's and the solutions'. */
   mask: MaskRenderer;
+  /** Dual-shadow levels: one mask camera per lamp. */
+  dualMasks: [MaskRenderer, MaskRenderer];
   arcball: Arcball;
   input: Input;
   hud: Hud;
@@ -96,12 +99,18 @@ function maskBounds(mask: Uint8Array, size: number): THREE.Vector4 {
  * One level's life: intro → playing (⇄ hinting) → (hold ≥ threshold for 0.3 s) → snapping → reveal → done.
  * gameplayStart fires on entering playing; gameplayStop on snapping, pause and leaving the level.
  * Assembly levels (World 2) have several pieces; the arcball turns the active one, and the score is the IoU of
- * all their shadows together against the target.
+ * all their shadows together against the target. Dual-shadow levels (World 4) have a target per lamp; the score
+ * is the lower of the two matches, so both must pass.
  */
 export class LevelController {
   state: LevelState = 'idle';
   level!: LevelDef;
-  private target!: TargetMask;
+  /** One target per scoring mask camera: one, or two on dual-shadow levels. */
+  private targets: TargetMask[] = [];
+  /** The latest match of each target; `iou` is the lowest. */
+  private ious: number[] = [];
+  /** Dual-shadow meters, one per lamp (shown under the main meter). */
+  private dualMeters: number[] = [];
   private pieces: Piece[] = [];
   private active = 0;
   private time = 0;
@@ -126,7 +135,11 @@ export class LevelController {
   private hintsUsed = 0;
   /** Pause / menu / ad open: the clock stops and input is ignored. */
   private suspended = false;
-  private displayTex: THREE.DataTexture | null = null;
+  private displayTex: THREE.DataTexture[] = [];
+  /** The light the target is cast along (the default light's view on dual-shadow levels, between the lamps). */
+  private solDir = LIGHT_DIR.clone();
+  /** Dual shadows: each lamp's light direction; null = one lamp. */
+  private dualDirs: [THREE.Vector3, THREE.Vector3] | null = null;
   /** Light control (World 3): where the lamp is now and where it must be; null = the light is fixed. */
   private lamp: Lamp | null = null;
   private lampSol: Lamp = { yaw: 0, pitch: 0 };
@@ -165,9 +178,19 @@ export class LevelController {
     return this.pieces[this.active]?.pivot ?? this.c.scene.objectRoot;
   }
 
-  /** The live match score (0–1) as last measured. */
+  /** The live match score (0–1) as last measured (dual shadows: the lower of the two). */
   get score() {
     return this.iou;
+  }
+
+  /** Each target's live match: one, or one per lamp on dual-shadow levels. */
+  get scores(): readonly number[] {
+    return this.ious;
+  }
+
+  /** The cameras the score is read from: the default light's, or one per lamp. */
+  private get scoreMasks(): MaskRenderer[] {
+    return this.dualDirs ? this.c.dualMasks : [this.c.mask];
   }
 
   /** Where the lamp is now (World 3), else null. */
@@ -271,9 +294,19 @@ export class LevelController {
     this.lamp = light ? { yaw: light.start[0], pitch: light.start[1] } : null;
     this.lampSol = light ? { yaw: light.solution[0], pitch: light.solution[1] } : { yaw: 0, pitch: 0 };
     const solDir = light ? lightDirection(light.solution[0], light.solution[1]) : LIGHT_DIR.clone();
+    this.solDir.copy(solDir);
     scene.setLightDir(solDir);
     mask.aim(OBJECT_POS, solDir);
     mask.setLight(null, WALL_Z);
+    // Dual shadows: the lamps sit `spread` degrees either side of the default light, turned about its view's up.
+    this.dualDirs = null;
+    if (level.dual) {
+      const a = THREE.MathUtils.degToRad(level.dual.spread);
+      const q = mask.camera.quaternion;
+      this.dualDirs = [new THREE.Vector3(-Math.sin(a), 0, -Math.cos(a)).applyQuaternion(q), new THREE.Vector3(Math.sin(a), 0, -Math.cos(a)).applyQuaternion(q)];
+      this.aimDual(OBJECT_POS);
+    }
+    scene.setDual(this.dualDirs);
 
     // Solutions are stored in light space (the solution light's): identity = local Z points back at the light,
     // local Y is light-space up.
@@ -290,22 +323,28 @@ export class LevelController {
       if (pivot !== root) {
         pivot.position.set(0, 0, 0).addScaledVector(axes[0], d.offset[0]).addScaledVector(axes[1], d.offset[1]).addScaledVector(axes[2], d.offset[2]);
         pivot.scale.setScalar(d.scale);
-      }
+      } else objects[0].root.scale.setScalar(d.scale);
       pivot.quaternion.copy(solved[i]);
       return { pivot, def: d, solutions: [], lastQ: new THREE.Quaternion() };
     });
     root.updateMatrixWorld(true);
 
     // Target masks come from the same render path as live scoring, so a perfect solve scores 1.0.
-    this.target = new TargetMask(rgbaToMask(mask.render(SCORE_SIZE), SCORE_SIZE), SCORE_SIZE);
-    const big = rgbaToMask(mask.render(DISPLAY_MASK_SIZE), DISPLAY_MASK_SIZE);
-    this.displayTex?.dispose();
-    this.displayTex = new THREE.DataTexture(blurToBytes(big, DISPLAY_MASK_SIZE, 5), DISPLAY_MASK_SIZE, DISPLAY_MASK_SIZE, THREE.RedFormat);
-    this.displayTex.magFilter = THREE.LinearFilter;
-    this.displayTex.minFilter = THREE.LinearFilter;
-    this.displayTex.needsUpdate = true;
-    scene.placeOutline(cam, mask.halfSize, this.displayTex, solDir);
-    scene.setReveal(level.reveal, maskBounds(big, DISPLAY_MASK_SIZE));
+    for (const t of this.displayTex) t.dispose();
+    const dirs = this.dualDirs ?? [solDir];
+    this.targets = this.scoreMasks.map((m, i) => {
+      const target = new TargetMask(rgbaToMask(m.render(SCORE_SIZE), SCORE_SIZE), SCORE_SIZE);
+      const big = rgbaToMask(m.render(DISPLAY_MASK_SIZE), DISPLAY_MASK_SIZE);
+      const tex = new THREE.DataTexture(blurToBytes(big, DISPLAY_MASK_SIZE, 5), DISPLAY_MASK_SIZE, DISPLAY_MASK_SIZE, THREE.RedFormat);
+      tex.magFilter = THREE.LinearFilter;
+      tex.minFilter = THREE.LinearFilter;
+      tex.needsUpdate = true;
+      this.displayTex[i] = tex;
+      scene.placeOutline(m.camera, m.halfSize, tex, dirs[i], i);
+      scene.setReveal(level.reveal, maskBounds(big, DISPLAY_MASK_SIZE), i);
+      return target;
+    });
+    this.displayTex.length = this.targets.length;
     scene.objectShadow = true;
 
     this.pieces.forEach((p, i) => (p.solutions = this.findSolutions(i, solved[i])));
@@ -326,6 +365,8 @@ export class LevelController {
     this.meterFloor = Math.max(0.5, Math.min(this.iou + 0.03, level.threshold - 0.2));
     this.meter = meterFromIou(this.iou, level.threshold, this.meterFloor);
     hud.setMeter(this.meter);
+    this.dualMeters = this.dualDirs ? this.ious.map((v) => meterFromIou(v, level.threshold, this.meterFloor)) : [];
+    hud.setDualMeters(this.dualMeters, this.dualDirs ? scene.dualColors : null);
     hud.setLevel(`${level.world}-${level.id.slice(-2).replace(/^0/, '')}`);
     // Loaded behind the menu (suspended): the HUD appears when the level is actually played.
     hud.visible = !suspended;
@@ -406,7 +447,7 @@ export class LevelController {
       const q = new THREE.Quaternion().setFromAxisAngle(axis, Math.PI).multiply(solution);
       pivot.quaternion.copy(q);
       pivot.updateMatrixWorld(true);
-      if (this.target.iou(mask.render(SCORE_SIZE)) >= 0.97) out.push(q);
+      if (this.measure() >= 0.97) out.push(q);
     }
     pivot.quaternion.copy(solution);
     pivot.updateMatrixWorld(true);
@@ -436,14 +477,13 @@ export class LevelController {
    * and try the mirrored direction too; take the first candidate under 0.5, else the lowest-scoring one.
    */
   private placeStart(solved: THREE.Quaternion[]) {
-    const { mask } = this.c;
     let best = 1;
     let bestIou = Infinity;
     for (const k of [1, 1.2, 1.4, 1.6, 1.8, 2.0]) {
       let done = false;
       for (const sk of [k, -k]) {
         this.applyStart(solved, sk);
-        const iou = this.target.iou(mask.render(SCORE_SIZE));
+        const iou = this.measure();
         if (iou < bestIou) {
           bestIou = iou;
           best = sk;
@@ -471,35 +511,53 @@ export class LevelController {
     // The mask camera follows the bobbing object, so the score depends on rotation only. Light control: it keeps
     // the solution light's view and scores the shadow where it lands on the wall, inside the outline, so the meter
     // fills only as the real shadow covers the outline.
-    mask.aim(scene.objectRoot.position, scene.targetDir);
+    mask.aim(scene.objectRoot.position, this.solDir);
     mask.setLight(this.lamp ? scene.lightDir : null, WALL_Z);
+    if (this.dualDirs) this.aimDual(scene.objectRoot.position);
     scene.objectRoot.updateMatrixWorld(true);
   }
 
-  private applyScore(rgba: Uint8Array) {
-    this.iou = this.target.iou(rgba);
+  /** Dual shadows: each lamp's mask camera looks along its light, with the default view's up as up. */
+  private aimDual(center: THREE.Vector3) {
+    if (!this.dualDirs) return;
+    const up = new THREE.Vector3().setFromMatrixColumn(this.c.mask.camera.matrixWorld, 1);
+    this.c.dualMasks.forEach((m, i) => m.aim(center, this.dualDirs![i], up));
+  }
+
+  /** Match now, read synchronously (no aiming): the lower of the targets' IoUs. */
+  private measure(): number {
+    return Math.min(...this.scoreMasks.map((m, i) => this.targets[i].iou(m.render(SCORE_SIZE))));
+  }
+
+  private applyScore(rgbas: Uint8Array[]) {
+    this.ious = this.targets.map((t, i) => t.iou(rgbas[i]));
+    this.iou = Math.min(...this.ious);
     this.peakIou = Math.max(this.peakIou, this.iou);
-    this.c.debug?.draw(rgba, this.target.mask, this.iou, `${this.state} solutions:${this.pieces.map((p) => p.solutions.length).join('+')}`);
+    this.c.debug?.draw(rgbas[0], this.targets[0].mask, this.iou, `${this.state} solutions:${this.pieces.map((p) => p.solutions.length).join('+')}`);
   }
 
   /** Synchronous score (level load, tests). */
   scoreSync() {
     this.prepareMask();
-    this.applyScore(this.c.mask.render(SCORE_SIZE));
+    this.applyScore(this.scoreMasks.map((m) => m.render(SCORE_SIZE)));
     this.scoreDirty = false;
     this.sinceScore = 0;
   }
 
-  /** Live score: async readback, at most one in flight; results from an older level are dropped. */
+  /**
+   * Live score: async readback, at most one in flight; results from an older level are dropped. Dual shadows read
+   * both cameras together, only when neither is busy (one at a time, they'd keep missing each other).
+   */
   private scoreAsync() {
+    const masks = this.scoreMasks;
+    if (masks.some((m) => m.busy)) return;
     this.prepareMask();
-    const pending = this.c.mask.renderAsync(SCORE_SIZE);
-    if (!pending) return;
+    const pending = masks.map((m) => m.renderAsync(SCORE_SIZE));
     this.scoreDirty = false;
     this.sinceScore = 0;
     const gen = this.generation;
-    pending.then((rgba) => {
-      if (gen === this.generation && (this.state === 'playing' || this.state === 'hinting')) this.applyScore(rgba);
+    Promise.all(pending as Promise<Uint8Array>[]).then((rgbas) => {
+      if (gen === this.generation && (this.state === 'playing' || this.state === 'hinting')) this.applyScore(rgbas);
     });
   }
 
@@ -550,6 +608,10 @@ export class LevelController {
     const goal = meterFromIou(this.iou, this.level.threshold, this.meterFloor);
     this.meter += (goal - this.meter) * Math.min(1, dt * 12);
     hud.setMeter(this.meter);
+    if (this.dualMeters.length) {
+      this.dualMeters = this.dualMeters.map((m, i) => m + (meterFromIou(this.ious[i], this.level.threshold, this.meterFloor) - m) * Math.min(1, dt * 12));
+      hud.setDualMeters(this.dualMeters);
+    }
     audio.setMatch(this.meter);
     scene.glow = THREE.MathUtils.smoothstep(this.meter, 0.7, 1.0);
     if (this.state !== 'playing') return;
@@ -677,7 +739,7 @@ export class LevelController {
     for (const k of [0.5, 0.6, 0.7, 0.8]) {
       move(k, k);
       this.prepareMask();
-      if (this.target.iou(this.c.mask.render(SCORE_SIZE)) > start + 0.08) {
+      if (this.measure() > start + 0.08) {
         pick = k;
         break;
       }
@@ -733,6 +795,7 @@ export class LevelController {
         if (lampFrom) this.setLamp(lampFrom.yaw + (this.lampSol.yaw - lampFrom.yaw) * k, lampFrom.pitch + (this.lampSol.pitch - lampFrom.pitch) * k);
         root.position.y = fromY + (OBJECT_POS.y - fromY) * k;
         hud.setMeter(this.meter + (1 - this.meter) * k);
+        if (this.dualMeters.length) hud.setDualMeters(this.dualMeters.map((m) => m + (1 - m) * k));
         scene.glow = 1;
       }, easeOutCubic)
       .then(() => this.reveal());
@@ -742,6 +805,7 @@ export class LevelController {
     const { scene, tweens, renderer, portal, audio } = this.c;
     this.state = 'reveal';
     this.iou = 1;
+    this.ious = this.ious.map(() => 1);
     audio.chime();
     audio.duck(true);
     if (!this.reduceMotion) scene.burst();

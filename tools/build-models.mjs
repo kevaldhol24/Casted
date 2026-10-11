@@ -6,6 +6,9 @@
  *     whole level JSON, with each piece's offset and scale worked out so the pieces fit the mask together.
  *   World 3 (tools/models/w3.mjs): light-control levels, one object each → public/models/w3/<name>.glb; writes the
  *     whole level JSON (the lamp's solution and start come from w3.mjs).
+ *   World 4 (tools/models/w4.mjs): dual-shadow levels, one object each → public/models/w4/<name>.glb; writes the
+ *     whole level JSON, with the object's scale worked out so both shadows fill the mask; the mask PNG holds both
+ *     shadows side by side.
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
@@ -20,14 +23,22 @@ import { rasterize } from './models/kit.mjs';
 import { W1_MODELS } from './models/w1.mjs';
 import { W2_LEVELS } from './models/w2.mjs';
 import { W3_LEVELS } from './models/w3.mjs';
+import { W4_LEVELS } from './models/w4.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+/** `npm run models -- 4` rebuilds only World 4 (any list of world numbers); no arguments = every world. */
+const only = process.argv.slice(2).map(Number);
+const want = (world) => !only.length || only.includes(world);
 /** Must match src/levels/LevelLoader.ts (MODEL_RADIUS, normalizeModel's farthest-vertex radius) and the mask camera. */
 const MODEL_RADIUS = 1.3;
 const MASK_HALF = 1.45;
 const MASK_SIZE = 128;
 /** Assembly pieces keep this share of the mask half-size free, so no piece's shadow can touch the edge. */
 const ASSEMBLY_FIT = 0.97;
+/** Dual-shadow objects grow until the larger shadow reaches this share of the mask half-size, up to DUAL_MAX_SCALE
+ * (bigger, and a turned object would reach the floor: its bounding sphere is 1.3 × scale). */
+const DUAL_FIT = 0.88;
+const DUAL_MAX_SCALE = 1.3;
 
 const write = (rel, data) => {
   const p = resolve(root, rel);
@@ -55,18 +66,18 @@ function chunk(type, data) {
   return out;
 }
 /** Mask PNG like the level editor's: shape opaque white, background transparent, top row first. */
-function maskPng(bits, size) {
+function maskPng(bits, size, height = size) {
   // 1-bit palette PNG: index 0 = transparent, 1 = opaque white (the Album masks with the alpha channel). About a
   // third the size of the RGBA version, which Poki Inspector flagged under "Image optimization".
   const stride = Math.ceil(size / 8) + 1;
-  const raw = Buffer.alloc(size * stride);
-  for (let y = 0; y < size; y++) {
-    const row = (size - 1 - y) * stride;
+  const raw = Buffer.alloc(height * stride);
+  for (let y = 0; y < height; y++) {
+    const row = (height - 1 - y) * stride;
     for (let x = 0; x < size; x++) if (bits[y * size + x]) raw[row + 1 + (x >> 3)] |= 0x80 >> (x & 7);
   }
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(size, 0);
-  ihdr.writeUInt32BE(size, 4);
+  ihdr.writeUInt32BE(height, 4);
   ihdr[8] = 1; // bit depth
   ihdr[9] = 3; // palette
   const plte = Buffer.from([0, 0, 0, 255, 255, 255]);
@@ -170,7 +181,7 @@ const report = (label, kb, model, cover, problems) => {
 };
 
 // --- World 1: one object per level ---------------------------------------------------------------
-for (const [id, def] of Object.entries(W1_MODELS)) {
+for (const [id, def] of want(1) ? Object.entries(W1_MODELS) : []) {
   const model = def.build();
   const { all, center, radius, extra } = analyse(model);
   const s = MODEL_RADIUS / radius;
@@ -190,7 +201,7 @@ for (const [id, def] of Object.entries(W1_MODELS)) {
 }
 
 // --- World 2: assembly levels --------------------------------------------------------------------
-for (const lv of W2_LEVELS) {
+for (const lv of want(2) ? W2_LEVELS : []) {
   // All pieces are modelled in one shared frame (the target's). One scale k maps that frame to the mask, chosen
   // so every piece's bounding sphere stays inside the mask square however the piece is turned.
   const built = lv.pieces.map((p) => ({ def: p, model: p.build() }));
@@ -246,7 +257,7 @@ for (const lv of W2_LEVELS) {
   if (m.edge) failed = true;
 }
 // --- World 3: light control ----------------------------------------------------------------------
-for (const lv of W3_LEVELS) {
+for (const lv of want(3) ? W3_LEVELS : []) {
   const model = lv.build();
   const { all, center, radius, extra } = analyse(model);
   const s = MODEL_RADIUS / radius;
@@ -273,5 +284,66 @@ for (const lv of W3_LEVELS) {
     }),
   );
   report(`${lv.id} ${lv.name}`, bytes / 1024, model, m.cover, [extra && `${extra} px outside core!`, m.edge && 'touches mask edge!']);
+}
+// --- World 4: dual shadows -----------------------------------------------------------------------
+for (const lv of want(4) ? W4_LEVELS : []) {
+  const model = lv.build(lv.spread);
+  const { all, center, radius } = analyse(model);
+  const sn = Math.sin(THREE.MathUtils.degToRad(lv.spread));
+  const cs = Math.cos(THREE.MathUtils.degToRad(lv.spread));
+  // Each lamp's view, as the game's mask cameras see it: u = x cos s ∓ z sin s, v = y (lamp A, then lamp B).
+  const view = (sign, k) =>
+    all.map((g) => {
+      const out = g.clone().translate(-center.x, -center.y, -center.z);
+      const pos = out.getAttribute('position');
+      for (let i = 0; i < pos.count; i++) pos.setXYZ(i, (pos.getX(i) * cs + sign * pos.getZ(i) * sn) * k, pos.getY(i) * k, 0);
+      return out;
+    });
+  // Size: grow the normalised object until the larger of the two shadows nearly fills the mask square.
+  const s0 = MODEL_RADIUS / radius;
+  let reach = 0;
+  for (const sign of [-1, 1])
+    for (const g of view(sign, s0)) {
+      g.computeBoundingBox();
+      const b = g.boundingBox;
+      reach = Math.max(reach, -b.min.x, b.max.x, -b.min.y, b.max.y);
+    }
+  const scale = round(Math.min(DUAL_MAX_SCALE, (MASK_HALF * DUAL_FIT) / reach), 3);
+  const [ma, mb] = [-1, 1].map((sign) => maskOf(view(sign, s0 * scale)));
+  const url = `models/w4/${lv.name}.glb`;
+  const bytes = await writeGlb(`public/${url}`, lv.name, model);
+  // Album picture: lamp A's shadow on the left, lamp B's on the right.
+  const both = new Uint8Array(MASK_SIZE * 2 * MASK_SIZE);
+  for (let y = 0; y < MASK_SIZE; y++)
+    for (let x = 0; x < MASK_SIZE; x++) {
+      both[y * MASK_SIZE * 2 + x] = ma.mask[y * MASK_SIZE + x];
+      both[y * MASK_SIZE * 2 + MASK_SIZE + x] = mb.mask[y * MASK_SIZE + x];
+    }
+  write(`public/masks/${lv.id}.png`, maskPng(both, MASK_SIZE * 2, MASK_SIZE));
+  write(
+    `src/data/levels/w4/${lv.id}.json`,
+    formatJson({
+      id: lv.id,
+      world: 4,
+      targetName: lv.targetName,
+      object: { kind: 'model', url },
+      scale,
+      freeAxes: lv.freeAxes,
+      startOffset: lv.startOffset,
+      dual: { spread: lv.spread },
+      threshold: lv.threshold,
+      parTime: lv.parTime,
+      allowMirror: false,
+      reveal: lv.reveal,
+      endless: false,
+      ...(lv.tip ? { tip: lv.tip } : {}),
+      mask: `masks/${lv.id}.png`,
+    }),
+  );
+  const lost = model.lost.a + model.lost.b;
+  report(`${lv.id} ${lv.name} ×${scale}`, bytes / 1024, model, Math.min(ma.cover, mb.cover), [
+    lost && `${lost} rows lost (A ${model.lost.a}, B ${model.lost.b})!`,
+    (ma.edge || mb.edge) && 'touches mask edge!',
+  ]);
 }
 if (failed) process.exitCode = 1;

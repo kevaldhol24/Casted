@@ -70,6 +70,9 @@ function maskImage(level: LevelDef, size: number, color: string): HTMLElement {
   div.style.background = color;
   div.style.maskImage = div.style.webkitMaskImage = url;
   div.style.maskSize = div.style.webkitMaskSize = 'contain';
+  // Dual-shadow levels' PNGs are twice as wide (both shadows): centred, not tiled.
+  div.style.maskRepeat = div.style.webkitMaskRepeat = 'no-repeat';
+  div.style.maskPosition = div.style.webkitMaskPosition = 'center';
   return div;
 }
 

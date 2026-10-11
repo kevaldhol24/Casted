@@ -1,0 +1,22 @@
+{
+  "id": "w4-01",
+  "world": 4,
+  "targetName": "Moon & Star",
+  "object": {
+    "kind": "model",
+    "url": "models/w4/moon_star_prop.glb"
+  },
+  "scale": 1.3,
+  "freeAxes": ["y"],
+  "startOffset": [0, 110, 0],
+  "dual": {
+    "spread": 26
+  },
+  "threshold": 0.8,
+  "parTime": 25,
+  "allowMirror": false,
+  "reveal": "pulse",
+  "endless": false,
+  "tip": "Two lamps, two shadows · match both outlines",
+  "mask": "masks/w4-01.png"
+}

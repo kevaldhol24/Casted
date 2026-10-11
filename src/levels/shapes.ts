@@ -783,7 +783,81 @@ function deer(): Silhouette {
   ];
 }
 
+// --- World 4 (Theatre): props and stage pictures, paired up as the two shadows of one object ---------------
+
+function topHat(): Silhouette {
+  return [
+    ellipse(0, -0.8, 0.95, 0.14),
+    poly([[-0.55, -0.78], [0.55, -0.78], [0.62, 0.92], [-0.62, 0.92]]),
+    ellipse(0, 0.92, 0.62, 0.07),
+  ];
+}
+
+/** Crescent: inside one circle, outside a second one shifted up and right. */
+function moon(): Silhouette {
+  const R = 0.95;
+  const c = V(0.42, 0.16);
+  const r = 0.8;
+  const pts: THREE.Vector2[] = [];
+  for (let i = 0; i <= 96; i++) {
+    const a = Math.PI * 0.12 + (i / 96) * Math.PI * 1.9;
+    const p = V(Math.cos(a) * R, Math.sin(a) * R);
+    if (p.distanceTo(c) > r) pts.push(p);
+  }
+  // Back along the inner circle, between the two tips.
+  const first = pts[0];
+  const last = pts[pts.length - 1];
+  const a0 = Math.atan2(last.y - c.y, last.x - c.x);
+  let a1 = Math.atan2(first.y - c.y, first.x - c.x);
+  if (a1 > a0) a1 -= Math.PI * 2;
+  for (let i = 1; i < 48; i++) {
+    const a = a0 + ((a1 - a0) * i) / 48;
+    pts.push(V(c.x + Math.cos(a) * r, c.y + Math.sin(a) * r));
+  }
+  return [new THREE.Shape(pts)];
+}
+
+function crown(): Silhouette {
+  return [
+    poly([[-0.9, -0.55], [0.9, -0.55], [0.95, 0.55], [0.48, 0.02], [0, 0.72], [-0.48, 0.02], [-0.95, 0.55]]),
+    rect(-0.92, -0.8, 0.92, -0.5),
+    circle(-0.95, 0.6, 0.11),
+    circle(0, 0.78, 0.12),
+    circle(0.95, 0.6, 0.11),
+  ];
+}
+
+/** Eighth note: head low left, stem, a flag curling off the top. */
+function note(): Silhouette {
+  return [
+    ellipse(-0.28, -0.66, 0.36, 0.25, 0.4),
+    rect(-0.02, -0.62, 0.11, 0.96),
+    curve([[0.05, 0.94], [0.2, 0.55], [0.75, 0.5], [0.6, -0.1]], 0.16),
+  ];
+}
+
+/** Comedy mask: a face with eye and smile holes. */
+function comedyMask(): Silhouette {
+  const face = ellipse(0, 0, 0.78, 0.95);
+  const eye = (x: number) => {
+    const p = new THREE.Path();
+    p.absellipse(x, 0.22, 0.17, 0.11, 0, Math.PI * 2, true, x < 0 ? 0.35 : -0.35);
+    return p;
+  };
+  const smile = new THREE.Path();
+  smile.moveTo(-0.45, -0.25);
+  smile.quadraticCurveTo(0, -0.38, 0.45, -0.25);
+  smile.quadraticCurveTo(0, -0.78, -0.45, -0.25);
+  face.holes.push(eye(-0.32), eye(0.32), smile);
+  return [face];
+}
+
 export const SILHOUETTES: Record<string, () => Silhouette> = {
+  topHat,
+  moon,
+  crown,
+  note,
+  comedyMask,
   cupcakeTop,
   cupcakeCase,
   lighthouseTower,

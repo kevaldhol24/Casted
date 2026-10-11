@@ -29,6 +29,8 @@ interface LevelBase {
   mask?: string;
   /** Light control (World 3+): the player moves the lamp around a hemisphere. */
   light?: LevelLight;
+  /** Dual shadows (World 4): two lamps, two outlines, both must match. */
+  dual?: LevelDual;
   /** One-line toast when play starts (teaching levels). */
   tip?: string;
 }
@@ -43,6 +45,15 @@ export interface LevelLight {
   start: [number, number];
 }
 
+/**
+ * Two fixed lamps either side of the default light, `spread` degrees each way about the wall's up (lamp A's light
+ * travels left, so its shadow is the left one). Each throws its own shadow at its own outline; the score is the
+ * lower of the two matches. The level's solution is relative to the default light's view (between the lamps).
+ */
+export interface LevelDual {
+  spread: number;
+}
+
 /** One level, as stored in src/data/levels/w<world>/<id>.json (written by tools/level-editor.html). */
 export interface SingleLevel extends LevelBase {
   object: LevelObject;
@@ -55,6 +66,8 @@ export interface SingleLevel extends LevelBase {
   freeAxes: Axis[];
   /** Start offset from the solution, as screen-space Euler degrees applied in x, y, z order. */
   startOffset: Vec3;
+  /** Size after the model's normalisation (default 1). */
+  scale?: number;
 }
 
 /** One object of an assembly level (World 2+): turned on its own; all pieces' shadows together make the target. */
@@ -84,7 +97,7 @@ export const isSingle = (l: LevelDef): l is SingleLevel => !('pieces' in l);
 /** A level's pieces; a single-object level is one piece at the centre, unscaled. */
 export function levelPieces(l: LevelDef): LevelPiece[] {
   if (isAssembly(l)) return l.pieces;
-  return [{ object: l.object, offset: [0, 0, 0], scale: 1, solution: l.solution, freeAxes: l.freeAxes, startOffset: l.startOffset }];
+  return [{ object: l.object, offset: [0, 0, 0], scale: l.scale ?? 1, solution: l.solution, freeAxes: l.freeAxes, startOffset: l.startOffset }];
 }
 
 const files = import.meta.glob<LevelDef>('../data/levels/*/*.json', { eager: true, import: 'default' });

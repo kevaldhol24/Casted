@@ -1,0 +1,21 @@
+{
+  "id": "w4-03",
+  "world": 4,
+  "targetName": "Crown & Mask",
+  "object": {
+    "kind": "model",
+    "url": "models/w4/crown_mask_prop.glb"
+  },
+  "scale": 1.3,
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [70, -80, 35],
+  "dual": {
+    "spread": 26
+  },
+  "threshold": 0.8,
+  "parTime": 50,
+  "allowMirror": false,
+  "reveal": "rock",
+  "endless": false,
+  "mask": "masks/w4-03.png"
+}

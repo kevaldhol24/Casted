@@ -40,6 +40,11 @@ export class Renderer {
     return this.post.cssVignette;
   }
 
+  /** How far the camera sits from what it looks at (after the last fit). */
+  get distance() {
+    return this.baseDistance;
+  }
+
   setFocus(points: THREE.Vector3[]) {
     this.focus = points;
     this.resize();

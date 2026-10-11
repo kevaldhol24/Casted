@@ -121,6 +121,37 @@ button {
   filter: brightness(1.15);
 }
 .meter.glow .meter-track { box-shadow: inset 0 0 0 1px rgba(242, 164, 58, 0.6), 0 0 18px rgba(242, 164, 58, 0.35); }
+/* Dual shadows: one thin meter per lamp, in its outline's colour; stripes (left) and dots (right) as on the wall. */
+.dual-meters {
+  display: flex;
+  gap: 8px;
+  margin-top: 5px;
+}
+.dual-track {
+  position: relative;
+  flex: 1;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(20, 14, 10, 0.75);
+  box-shadow: inset 0 0 0 1px var(--panel-edge);
+  overflow: hidden;
+}
+.dual-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  transform: scaleX(0);
+  border-radius: 999px;
+  background-color: var(--zone, var(--accent));
+}
+.dual-fill.stripes {
+  background-image: repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.28) 0 3px, transparent 3px 7px);
+}
+.dual-fill.dots {
+  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.32) 1.3px, transparent 1.6px);
+  background-size: 6px 6px;
+}
+.dual-fill.full { box-shadow: 0 0 8px 1px var(--zone, var(--accent)); }
 .meter-label {
   margin-top: 4px;
   display: flex;

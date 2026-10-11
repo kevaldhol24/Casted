@@ -19,6 +19,9 @@ export class Hud {
   private fill = el('div', 'meter-fill');
   private levelLabel = el('span');
   private pctLabel = el('span');
+  /** Dual shadows (World 4): a small meter per lamp under the main one (which shows the lower), stripes and dots. */
+  private dualWrap = el('div', 'dual-meters');
+  private dualFills = [el('div', 'dual-fill stripes'), el('div', 'dual-fill dots')];
   private timer = el('div', 'chip hud-timer');
   private toastEl = el('div', 'toast');
   private hand = el('div', 'hand', ICONS.hand);
@@ -57,7 +60,13 @@ export class Hud {
     track.append(this.fill);
     const label = el('div', 'meter-label');
     label.append(this.levelLabel, this.pctLabel);
-    this.meter.append(track, label);
+    for (const f of this.dualFills) {
+      const t = el('div', 'dual-track');
+      t.append(f);
+      this.dualWrap.append(t);
+    }
+    this.dualWrap.style.display = 'none';
+    this.meter.append(track, this.dualWrap, label);
     const right = el('div', 'hud-right');
     right.append(this.timer, this.hintBtn);
     this.setTimer(null);
@@ -85,6 +94,23 @@ export class Hud {
     this.fill.style.transform = `scaleX(${v.toFixed(3)})`;
     this.pctLabel.textContent = `${Math.round(v * 100)}%`;
     this.meter.classList.toggle('glow', v >= 0.7);
+  }
+
+  /**
+   * Dual shadows: each lamp's meter (left lamp's shadow first). `colors` (each meter's outline colour) shows them;
+   * an empty list hides them.
+   */
+  setDualMeters(values: number[], colors?: [string, string] | null) {
+    if (colors !== undefined) {
+      this.dualWrap.style.display = colors && values.length ? '' : 'none';
+      if (colors) this.dualFills.forEach((f, i) => f.style.setProperty('--zone', colors[i]));
+    }
+    values.forEach((v, i) => {
+      const f = this.dualFills[i];
+      if (!f) return;
+      f.style.transform = `scaleX(${v.toFixed(3)})`;
+      f.classList.toggle('full', v >= 0.999);
+    });
   }
 
   /** Endless countdown (null hides it). Under 10 s it turns red and pulses. */

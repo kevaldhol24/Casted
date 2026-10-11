@@ -1,0 +1,21 @@
+{
+  "id": "w4-05",
+  "world": 4,
+  "targetName": "Anchor & Heart",
+  "object": {
+    "kind": "model",
+    "url": "models/w4/anchor_heart_prop.glb"
+  },
+  "scale": 1.3,
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [80, 70, -45],
+  "dual": {
+    "spread": 26
+  },
+  "threshold": 0.8,
+  "parTime": 60,
+  "allowMirror": false,
+  "reveal": "pulse",
+  "endless": false,
+  "mask": "masks/w4-05.png"
+}
