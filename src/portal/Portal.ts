@@ -1,11 +1,11 @@
 import type { SaveData } from '../core/Store';
 
-/** The game mutes audio only when an ad actually starts (CrazyGames adStarted), not when it is requested. */
 export interface AdCallbacks {
+  /** The ad actually started playing (not every requested break shows one). */
   onStart?(): void;
 }
 
-/** Hides Poki / CrazyGames SDK differences. One implementation is chosen at build time (import.meta.env.MODE). */
+/** The game's view of the portal SDK. One implementation is chosen at build time (import.meta.env.MODE). */
 export interface Portal {
   init(): Promise<void>;
   loadingFinished(): void;
@@ -15,9 +15,15 @@ export interface Portal {
   midgame(cb?: AdCallbacks): Promise<void>;
   /** True only if the ad completed. */
   rewarded(cb?: AdCallbacks): Promise<boolean>;
-  /** Rewarded buttons are disabled with a notice when false (adblock, Basic Launch). */
+  /** Rewarded buttons are disabled with a notice when false. */
   rewardedAvailable(): boolean;
   happyTime?(): void;
+  /** Poki game events (Analytics Layer A); only Analytics calls it. */
+  measure?(category: string, what: string, action: string): void;
+  /** A link that opens the game with these params (the portal's own game page). */
+  shareableURL?(params: Record<string, string | number>): Promise<string>;
+  /** A param from the portal page's URL (set by shareableURL) or the game's own URL. */
+  getURLParam?(name: string): string | null;
   save(data: SaveData): Promise<void>;
   load(): Promise<SaveData | null>;
 }

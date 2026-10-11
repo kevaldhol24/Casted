@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 
@@ -67,11 +67,48 @@ function levelEditor(): Plugin {
   };
 }
 
-export default defineConfig({
+/**
+ * Poki build (`vite build --mode poki`): the SDK script tag goes in before the game's module, so window.PokiSDK
+ * exists at boot. It is the build's only off-bundle request, and Poki serves it. `dev --mode poki` gets no tag:
+ * main.ts installs the logging mock instead.
+ */
+function pokiSdk(): Plugin {
+  return {
+    name: 'casted-poki-sdk',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'pre',
+      handler: () => [{ tag: 'script', attrs: { src: 'https://game-cdn.poki.com/scripts/v2/poki-sdk.js' }, injectTo: 'head' }],
+    },
+  };
+}
+
+/**
+ * DRACOLoader points at its default decoders with `new URL('../libs/draco/…', import.meta.url)`, which makes Vite
+ * bundle all five files (~1.3 MB, incl. a 719 KB asm.js fallback). LevelLoader sets the glTF WASM decoder itself, so
+ * blank those defaults and only the two files it imports ship.
+ */
+function dracoDefaultsOff(): Plugin {
+  return {
+    name: 'casted-draco-defaults-off',
+    apply: 'build',
+    transform(code, id) {
+      if (!/[\\/]three[\\/]examples[\\/]jsm[\\/]loaders[\\/]DRACOLoader\.js$/.test(id)) return null;
+      const out = code.replace(/new URL\(\s*'\.\.\/libs\/draco\/[^']+',\s*import\.meta\.url\s*\)\.toString\(\)/g, "''");
+      if (out === code) this.warn('DRACOLoader default decoder URLs not found; the unused decoders will ship');
+      return { code: out, map: null };
+    },
+  };
+}
+
+const VERSION = (JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }).version;
+
+export default defineConfig(({ mode }) => ({
   base: './',
-  plugins: [levelEditor()],
-  build: { target: 'es2020', assetsInlineLimit: 0, chunkSizeWarningLimit: 800 },
+  define: { __CASTED_BUILD__: JSON.stringify(`${VERSION}-${mode === 'poki' ? 'poki' : 'web'}`) },
+  plugins: [levelEditor(), dracoDefaultsOff(), ...(mode === 'poki' ? [pokiSdk()] : [])],
+  build: { target: 'es2020', assetsInlineLimit: 0, chunkSizeWarningLimit: 900 },
   server: { host: true },
   // Model loaders are imported lazily; pre-bundle them so the first model level doesn't hit a dev re-optimise (504).
   optimizeDeps: { include: ['three/addons/loaders/GLTFLoader.js', 'three/addons/loaders/DRACOLoader.js'] },
-});
+}));

@@ -134,6 +134,10 @@ export class LevelController {
   reduceMotion = false;
   hintsEnabled = false;
   onComplete: (r: LevelResult) => void = () => {};
+  /** A prompt appeared (Analytics): 'hint-pulse', 'close-toast', 'switch-tip', 'level-tip'. */
+  onPrompt: (type: string) => void = () => {};
+  /** The player switched the piece they turn (Analytics). */
+  onSwitch: () => void = () => {};
 
   constructor(private c: Ctx) {}
 
@@ -159,6 +163,16 @@ export class LevelController {
   /** What the player is turning (the on-object arrow follows it). */
   get activePivot(): THREE.Object3D {
     return this.pieces[this.active]?.pivot ?? this.c.scene.objectRoot;
+  }
+
+  /** The live match score (0–1) as last measured. */
+  get score() {
+    return this.iou;
+  }
+
+  /** Where the lamp is now (World 3), else null. */
+  get lampAngles(): Readonly<Lamp> | null {
+    return this.lamp;
   }
 
   /** The player moves the lamp (World 3). */
@@ -334,7 +348,10 @@ export class LevelController {
         arcball.enabled = true;
         this.c.portal.gameplayStart();
         this.showAxisGuide();
-        if (level.tip) hud.toast(level.tip, 3.2);
+        if (level.tip) {
+          hud.toast(level.tip, 3.2);
+          this.onPrompt('level-tip');
+        }
       });
   }
 
@@ -366,6 +383,7 @@ export class LevelController {
     this.c.hud.setActivePiece(i);
     if (changed && byPlayer) {
       this.switched = true;
+      this.onSwitch();
       if (this.state === 'playing') this.showAxisGuide();
     }
     return changed;
@@ -546,6 +564,7 @@ export class LevelController {
       if (this.closeT > 5) {
         this.closeShown = true;
         hud.toast('Close!');
+        this.onPrompt('close-toast');
       }
     } else this.closeT = 0;
 
@@ -555,6 +574,7 @@ export class LevelController {
       if (this.switchT > SWITCH_TIP_S) {
         this.switched = true;
         hud.toast('Tap Switch to turn the other object', 2.6);
+        this.onPrompt('switch-tip');
       }
     }
 
@@ -564,6 +584,7 @@ export class LevelController {
     if (this.hintsEnabled && !this.pulsed && this.stuckT > HINT_PULSE_S) {
       this.pulsed = true;
       hud.pulseHint();
+      this.onPrompt('hint-pulse');
     }
   }
 
@@ -748,18 +769,25 @@ export class LevelController {
 
   /** Leaving the level (pause, menu, ad): stop gameplay without completing. */
   suspend() {
+    // Only the first suspend stops gameplay (pause → hint → ad would otherwise stop it again).
+    if (this.state === 'playing' && !this.suspended) this.c.portal.gameplayStop();
     this.suspended = true;
-    if (this.state === 'playing') this.c.portal.gameplayStop();
     this.c.arcball.enabled = false;
     this.c.arcball.release();
     this.c.audio.setRotateSpeed(0);
   }
 
   resume() {
+    const was = this.suspended;
     this.suspended = false;
     if (this.state === 'playing') {
-      this.c.portal.gameplayStart();
+      if (was) this.c.portal.gameplayStart();
       this.c.arcball.enabled = true;
     }
+  }
+
+  /** Suspended mid-level (paused, a panel or an ad open): resume() will restart gameplay. */
+  get isSuspended() {
+    return this.suspended;
   }
 }

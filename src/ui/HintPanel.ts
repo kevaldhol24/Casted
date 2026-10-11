@@ -52,7 +52,9 @@ export class HintPanel {
     this.onClose();
   }
 
-  show(s: HintPanelState) {
+  /** Returns the video offers on screen (Analytics): 'hint-reveal', 'bulbs'. */
+  show(s: HintPanelState): ('hint-reveal' | 'bulbs')[] {
+    const offers: ('hint-reveal' | 'bulbs')[] = [];
     this.list.innerHTML = '';
     this.balance.innerHTML = `<span class="bulb-inline">${ICONS.bulb}</span> ${s.bulbs} Bulbs`;
     this.note.textContent = s.adReady ? '' : 'No video available right now — try again soon.';
@@ -74,6 +76,7 @@ export class HintPanel {
         const v = el('button', 'hint-video interactive', `${ICONS.video}<span>Watch</span>`);
         v.disabled = !s.adReady;
         v.setAttribute('aria-label', 'Reveal for a video');
+        if (s.adReady) offers.push('hint-reveal');
         v.addEventListener('click', () => {
           this.hide();
           this.onPick('reveal', true);
@@ -85,6 +88,7 @@ export class HintPanel {
     if (!s.freeHint && s.bulbs < HINT_COST.reveal) {
       const more = el('button', 'btn-primary interactive get-bulbs', `${ICONS.video} +2 Bulbs`);
       more.disabled = !s.adReady;
+      if (s.adReady) offers.push('bulbs');
       more.addEventListener('click', () => {
         this.hide();
         this.onGetBulbs();
@@ -92,6 +96,7 @@ export class HintPanel {
       this.list.append(more);
     }
     this.overlay.classList.add('show');
+    return offers;
   }
 
   hide() {

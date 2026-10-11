@@ -56,7 +56,7 @@ export const W3_LEVELS = [
     name: 'squirrel_junk',
     targetName: 'Squirrel',
     build: object('squirrel', 3301, { pieces: 7, depth: 1.05, junk: 7, colors: BENCH }),
-    freeAxes: ['x', 'y'],
+    freeAxes: ['x', 'y', 'z'],
     startOffset: [60, -75, 0],
     light: { solution: [-5, -2], start: [10, 6] },
     threshold: 0.75,

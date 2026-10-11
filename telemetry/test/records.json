@@ -1,0 +1,164 @@
+[
+  {
+    "kind": "session",
+    "sessionId": "8ad8b312-36f9-4c29-8763-ec9b9c0acb70",
+    "playerId": "4e1b7a35-c820-4fd2-9aec-d37acb2aae49",
+    "build": "0.1.0-poki",
+    "firstVisit": true,
+    "daysSinceFirst": 0,
+    "device": "desktop",
+    "os": "windows",
+    "browser": "chrome",
+    "viewport": "800x600",
+    "dpr": 1,
+    "tier": "low",
+    "lang": "en",
+    "tzOffset": -330,
+    "loadMs": 930,
+    "firstInputMs": 6313,
+    "endMs": 47884,
+    "endReason": "pagehide",
+    "levelsSolved": 2,
+    "furthestLevel": "1-03"
+  },
+  {
+    "kind": "attempt",
+    "attemptId": "bcdcfa4c-9eb1-4c22-98f2-d52237e7f66d",
+    "sessionId": "8ad8b312-36f9-4c29-8763-ec9b9c0acb70",
+    "levelId": "1-02",
+    "world": 1,
+    "mode": "campaign",
+    "attemptNo": 1,
+    "isReplay": false,
+    "startAt": 25091,
+    "firstDragMs": 50,
+    "durationMs": 3471,
+    "activeMs": 2414,
+    "idleMs": 1007,
+    "outcome": "solved",
+    "stars": 1,
+    "parMs": 15000,
+    "startIou": 0.35,
+    "threshold": 0.9,
+    "finalIou": 0.99,
+    "peakIou": 1,
+    "peakAtMs": 2982,
+    "iouTrace": [
+      [
+        0,
+        0.35
+      ],
+      [
+        2000,
+        0.77
+      ]
+    ],
+    "stuckMs": 1673,
+    "nearMissMs": 816,
+    "drags": 2,
+    "rotationDeg": 130,
+    "axisSplit": {
+      "x": 0.31,
+      "y": 0.69,
+      "roll": 0
+    },
+    "switches": 0,
+    "lampMoves": 0,
+    "lampMs": 0,
+    "hints": [
+      {
+        "tier": "nudge",
+        "atMs": 881,
+        "iouBefore": 0.66,
+        "iouAfter": 0.32,
+        "paid": "free"
+      }
+    ],
+    "hintPanelOpens": [
+      {
+        "atMs": 881,
+        "closedWithoutUse": false
+      }
+    ],
+    "promptsShown": [],
+    "pauses": [
+      {
+        "atMs": 831,
+        "durMs": 1570
+      },
+      {
+        "atMs": 881,
+        "durMs": 730
+      }
+    ],
+    "bulbsBefore": 5,
+    "bulbsAfter": 6,
+    "winAction": "next",
+    "winScreenMs": 1578
+  },
+  {
+    "kind": "attempt",
+    "attemptId": "267ac7dc-3479-4f63-9e70-76f2eae23080",
+    "sessionId": "8ad8b312-36f9-4c29-8763-ec9b9c0acb70",
+    "levelId": "1-03",
+    "world": 1,
+    "mode": "campaign",
+    "attemptNo": 1,
+    "isReplay": false,
+    "startAt": 43342,
+    "firstDragMs": 50,
+    "durationMs": 1487,
+    "activeMs": 1487,
+    "idleMs": 0,
+    "outcome": "quit-menu",
+    "stars": null,
+    "parMs": 20000,
+    "startIou": 0.4,
+    "threshold": 0.9,
+    "finalIou": 0.5,
+    "peakIou": 0.5,
+    "peakAtMs": 1203,
+    "iouTrace": [
+      [
+        0,
+        0.4
+      ]
+    ],
+    "stuckMs": 711,
+    "nearMissMs": 0,
+    "drags": 1,
+    "rotationDeg": 105,
+    "axisSplit": {
+      "x": 0.29,
+      "y": 0.71,
+      "roll": 0
+    },
+    "switches": 0,
+    "lampMoves": 0,
+    "lampMs": 0,
+    "hints": [],
+    "hintPanelOpens": [],
+    "promptsShown": [],
+    "pauses": [
+      {
+        "atMs": 1487,
+        "durMs": 564
+      }
+    ],
+    "bulbsBefore": 6,
+    "bulbsAfter": 6,
+    "winAction": null,
+    "winScreenMs": null
+  },
+  {
+    "kind": "ad",
+    "sessionId": "8ad8b312-36f9-4c29-8763-ec9b9c0acb70",
+    "placement": "midgame",
+    "levelId": "1-02",
+    "atMs": 42139,
+    "shown": true,
+    "accepted": true,
+    "result": "played",
+    "durMs": 1558
+  }
+]

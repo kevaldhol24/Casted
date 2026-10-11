@@ -24,6 +24,8 @@ export class ResultCard {
   private overlay = el('div', 'overlay center');
   private card = el('div', 'card interactive result-card');
   onStar = (_index: number) => {};
+  /** The card closed (Analytics logs the video offers that were never pressed). */
+  onHide = () => {};
 
   constructor(parent: HTMLElement) {
     this.overlay.append(this.card);
@@ -66,6 +68,8 @@ export class ResultCard {
   }
 
   hide() {
+    if (!this.open) return;
     this.overlay.classList.remove('show');
+    this.onHide();
   }
 }

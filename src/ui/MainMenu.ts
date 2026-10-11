@@ -10,7 +10,7 @@ export interface ModeTile {
 
 /**
  * Main menu (return visits): big Play, mode tiles, settings and mute, Bulbs. A first-time player never sees it;
- * page load goes straight into level 1. The bottom strip is kept clear for a CrazyGames banner.
+ * page load goes straight into level 1.
  */
 export class MainMenu {
   private overlay = el('div', 'overlay menu');
@@ -35,8 +35,7 @@ export class MainMenu {
     const logo = el('h1', 'logo', 'CASTED');
     const play = el('button', 'btn-primary btn-play interactive', 'Play');
     center.append(logo, play, this.tiles);
-    const banner = el('div', 'banner-slot');
-    this.overlay.append(top, center, banner);
+    this.overlay.append(top, center);
     parent.append(this.overlay);
     play.addEventListener('click', () => {
       this.hide();

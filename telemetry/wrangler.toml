@@ -1,0 +1,23 @@
+name = "casted-telemetry"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+# No request logs: the Worker must not keep IPs or user agents anywhere.
+[observability]
+enabled = false
+
+# Daily retention sweep (deletes rows older than RETENTION_DAYS).
+[triggers]
+crons = ["17 3 * * *"]
+
+[vars]
+# Where the game runs. Poki serves game builds from *.poki-gdn.com; check the Origin header in Poki Inspector's
+# Network tab on the first test and add anything missing. localhost entries are for `npm run dev`.
+ALLOWED_ORIGINS = "https://castedweb.netlify.app, https://*.poki-gdn.com, http://localhost:5173, http://127.0.0.1:5173"
+RETENTION_DAYS = "365"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "casted-telemetry"
+# Replace with the id printed by `npx wrangler d1 create casted-telemetry`.
+database_id = "00000000-0000-0000-0000-000000000000"
