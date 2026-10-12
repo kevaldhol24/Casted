@@ -1,0 +1,16 @@
+{
+  "id": "w1-20",
+  "world": 1,
+  "targetName": "T-Rex",
+  "object": {
+    "kind": "model",
+    "url": "models/w1/t_rex_junk.glb"
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [135, -145, -90],
+  "threshold": 0.86,
+  "parTime": 85,
+  "allowMirror": false,
+  "reveal": "stomp",
+  "mask": "masks/w1-20.png"
+}

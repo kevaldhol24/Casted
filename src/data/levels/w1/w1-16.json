@@ -1,0 +1,17 @@
+{
+  "id": "w1-16",
+  "world": 1,
+  "targetName": "Scissors",
+  "object": {
+    "kind": "model",
+    "url": "models/w1/scissors_junk.glb"
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [110, -130, 65],
+  "threshold": 0.78,
+  "parTime": 60,
+  "allowMirror": false,
+  "reveal": "spin",
+  "tip": "Tricky from here: the shadow must line up exactly",
+  "mask": "masks/w1-16.png"
+}

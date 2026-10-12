@@ -1,10 +1,11 @@
 /**
- * The 15 World 1 (Attic) junk objects. Each target silhouette (src/levels/shapes.ts, the same outlines the
+ * The 20 World 1 (Attic) junk objects. Each target silhouette (src/levels/shapes.ts, the same outlines the
  * Album shows) is shattered into boards and sheets scattered in depth, pinned with struts, and buried in
  * attic clutter. From the light the pieces line up into the target; from anywhere else it's a junk heap.
  *
  * Readability ramps with the level (design doc): the teaching levels 1–3 come apart into a few shallow
- * pieces, 4–5 into more, and from level 6 ("first looks-like-nothing object") into many deep ones.
+ * pieces, 4–5 into more, and from level 6 ("first looks-like-nothing object") into many deep ones. Levels 16–20
+ * are the hard tail: detailed, asymmetric outlines in 12–15 deep pieces under heavy clutter.
  */
 import { SILHOUETTES } from '../../src/levels/shapes.ts';
 import { C, Model } from './kit.mjs';
@@ -30,6 +31,12 @@ const LEVELS = [
   ['w1-13', 'guitar', 1313, { pieces: 10, depth: 0.85, junk: 8, colors: BOARDS }],
   ['w1-14', 'anchor', 1414, { pieces: 10, depth: 0.85, junk: 6, colors: [C.tin, C.darkWood, C.wood, C.brass] }],
   ['w1-15', 'elephant', 1515, { pieces: 11, depth: 0.9, junk: 10, colors: MIXED }],
+  // Hard levels: more and deeper pieces, more clutter (they look like nothing until nearly solved).
+  ['w1-16', 'scissors', 1616, { pieces: 12, depth: 1.0, junk: 12, colors: [C.tin, C.brass, C.darkWood, C.pale] }],
+  ['w1-17', 'spider', 1717, { pieces: 13, depth: 1.0, junk: 12, colors: MIXED }],
+  ['w1-18', 'rockingChair', 1818, { pieces: 13, depth: 1.0, junk: 13, colors: BOARDS }],
+  ['w1-19', 'gramophone', 1919, { pieces: 14, depth: 1.05, junk: 14, colors: [C.brass, C.darkWood, C.wood, C.tin] }],
+  ['w1-20', 'tRex', 2020, { pieces: 15, depth: 1.1, junk: 15, colors: MIXED }],
 ];
 
 /** id → { name (GLB file), build() } */

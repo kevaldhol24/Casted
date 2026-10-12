@@ -1,0 +1,16 @@
+{
+  "id": "w1-17",
+  "world": 1,
+  "targetName": "Spider",
+  "object": {
+    "kind": "model",
+    "url": "models/w1/spider_junk.glb"
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [-125, 105, -80],
+  "threshold": 0.75,
+  "parTime": 65,
+  "allowMirror": false,
+  "reveal": "stomp",
+  "mask": "masks/w1-17.png"
+}

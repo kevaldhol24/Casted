@@ -628,6 +628,7 @@ export class Game {
       parTime: r.level.parTime,
       isLast: this.index >= LEVELS.length - 1,
       bulbsEarned: earned,
+      bulbFor3Stars: this.store.stars(r.level.id) < 3,
     });
   }
 

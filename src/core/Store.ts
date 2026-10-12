@@ -60,8 +60,11 @@ export const defaultSave = (): SaveData => ({
   settings: { sensitivity: 1, reduceMotion: false, muted: false, music: 0.7, sfx: 0.8, quality: 'auto' },
 });
 
-/** Bulb rewards from the design doc's economy table. */
-export const BULBS = { firstSolve: 1, threeStarBonus: 1, rewardedAd: 2, dailyLogin: 1, dailySolve: 2 } as const;
+/**
+ * Bulb rewards. Levels pay only for skill: +1 the first time a level gets 3 stars (no hints, inside par time); a plain
+ * solve pays nothing (the design doc's +1 first-solve reward was dropped: hints were too plentiful).
+ */
+export const BULBS = { threeStar: 1, rewardedAd: 2, dailyLogin: 1, dailySolve: 2 } as const;
 const MAX_SHIELDS = 3;
 const SHIELD_EVERY = 7;
 export const HINT_COST = { nudge: 1, peek: 2, reveal: 3 } as const;
@@ -115,12 +118,11 @@ export class Store {
     }
   }
 
-  /** Records a solve and pays Bulbs (first solve +1, first 3-star +1). Returns the Bulbs earned. */
+  /** Records a solve and pays Bulbs (+1 for the level's first 3 stars). Returns the Bulbs earned. */
   recordSolve(id: string, stars: number, time: number): number {
     const prev = this.data.levels[id];
     let earned = 0;
-    if (!prev) earned += BULBS.firstSolve;
-    if (stars === 3 && (prev?.stars ?? 0) < 3) earned += BULBS.threeStarBonus;
+    if (stars === 3 && (prev?.stars ?? 0) < 3) earned += BULBS.threeStar;
     this.data.levels[id] = { stars: Math.max(prev?.stars ?? 0, stars), bestTime: Math.min(prev?.bestTime ?? Infinity, time) };
     this.data.bulbs += earned;
     this.save();

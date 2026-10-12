@@ -9,6 +9,8 @@ export interface WinInfo {
   parTime: number;
   isLast: boolean;
   bulbsEarned: number;
+  /** No 3 stars on this level yet: a 3-star replay would still pay a Bulb. */
+  bulbFor3Stars?: boolean;
 }
 
 /** Win card: stars, time, a big "Next" (auto-advances after 4 s idle), small Replay / Levels. */
@@ -59,7 +61,7 @@ export class WinScreen {
     this.title.textContent = info.title;
     const t = Math.round(info.time);
     const parHit = info.time <= info.parTime;
-    const bulbs = info.bulbsEarned > 0 ? ` · +${info.bulbsEarned} ${ICONS.bulb}` : '';
+    const bulbs = info.bulbsEarned > 0 ? ` · +${info.bulbsEarned} ${ICONS.bulb}` : info.bulbFor3Stars ? ` · 3★ = +1 ${ICONS.bulb}` : '';
     this.sub.innerHTML = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}${parHit ? ' · under par' : ` · par ${info.parTime}s`}<span class="bulb-inline">${bulbs}</span>`;
     this.next.firstChild!.textContent = info.isLast ? 'Menu' : 'Next';
     this.levels.style.display = info.isLast ? 'none' : '';

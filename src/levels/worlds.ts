@@ -28,6 +28,6 @@ export function unlockText(u: Unlock): string {
 /** Mode unlocks from the design doc. */
 export const MODE_UNLOCKS = {
   daily: { levelId: 'w1-05', text: 'Solve level 5' },
-  endless: { levelId: 'w1-15', text: 'Finish World 1' },
+  endless: { levelId: 'w1-20', text: 'Finish World 1' },
   zen: { levelId: 'w2-15', text: 'Finish World 2' },
 } as const;
