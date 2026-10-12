@@ -11,6 +11,7 @@ import { ATTIC, OBJECT_POS, ShadowScene, paletteFor } from '../shadow/ShadowScen
 import { Album } from '../ui/Album';
 import { DebugView } from '../ui/DebugView';
 import { el, ICONS } from '../ui/dom';
+import { ControlsHint } from '../ui/ControlsHint';
 import { HintPanel } from '../ui/HintPanel';
 import { Hud } from '../ui/Hud';
 import { LevelSelect } from '../ui/LevelSelect';
@@ -29,8 +30,8 @@ import type { Analytics, Placement } from '../analytics/Analytics';
 import { Renderer } from './Renderer';
 import { BULBS, HINT_COST, type HintTier, type SaveData, Store } from './Store';
 
-/** After a rewarded video, the video buttons stay off this long. Poki paces its own ads, so none there. */
-const REWARDED_COOLDOWN_S = import.meta.env.MODE === 'poki' ? 0 : 60;
+/** After a rewarded video, the video buttons stay off this long. CrazyGames paces its own ads, so none there. */
+const REWARDED_COOLDOWN_S = import.meta.env.MODE === 'crazygames' ? 0 : 60;
 const NO_VIDEO = 'No video available right now — try again soon.';
 
 type Mode = 'campaign' | 'daily' | 'endless';
@@ -58,6 +59,7 @@ export class Game {
   private levelSelect: LevelSelect;
   private hintPanel: HintPanel;
   private pause: PausePanel;
+  private controls: ControlsHint;
   private vignette = el('div', 'css-vignette');
   /** Covers the whole UI during an ad so no button or the lamp pad can be pressed. */
   private adBlock = el('div', 'ad-block');
@@ -113,6 +115,7 @@ export class Game {
     this.levelSelect = new LevelSelect(ui);
     this.hintPanel = new HintPanel(ui);
     this.pause = new PausePanel(ui);
+    this.controls = new ControlsHint(ui);
     ui.append(this.adBlock);
     const debug = new URLSearchParams(location.search).has('debug') ? new DebugView(ui, SCORE_SIZE) : null;
 
@@ -126,9 +129,11 @@ export class Game {
       onDrag: (i) => {
         if (this.level.lightOnly) {
           this.level.dragLamp(i);
+          this.controls.used('lamp');
           this.analytics.track({ type: 'input', kind: 'lamp' });
         } else {
           arcball.drag(i);
+          this.controls.used(i.roll && !i.yaw && !i.pitch ? 'twist' : 'turn');
           this.analytics.track({ type: 'drag', yaw: i.yaw, pitch: i.pitch, roll: i.roll });
         }
       },
@@ -136,6 +141,12 @@ export class Game {
       onKey: (code) => {
         // Only keys that turn the object or move the lamp count as acting (not Tab, Esc, H).
         if (/^(Key[WASDQE]|Arrow)/.test(code)) this.analytics.track({ type: 'input', kind: 'key' });
+        if (this.level.playing) {
+          if (/^Key[QE]$/.test(code)) this.controls.used('twist');
+          else if (/^Key[WASD]$/.test(code)) this.controls.used('turn');
+          else if (code.startsWith('Arrow')) this.controls.used(this.level.hasLight ? 'lamp' : 'turn');
+          else if (code === 'Tab') this.controls.used('switch');
+        }
         this.onKey(code);
       },
     });
@@ -157,7 +168,10 @@ export class Game {
     this.level.onComplete = (r) => this.onComplete(r);
     this.level.onPrompt = (prompt) => this.analytics.track({ type: 'prompt', prompt });
     this.level.onSwitch = () => this.analytics.track({ type: 'switch' });
+    this.level.onStart = () => this.controls.setLevel(this.level.controls);
     this.applySettings(store.data.settings);
+    // CrazyGames' muteAudio setting wins over the in-game sound toggle.
+    portal.onForcedMute?.((m) => this.audio.setForcedMute(m));
     this.monitor.onSlow = () => this.downgrade();
 
     // UI wiring. Every button gets the paper-tick click sound.
@@ -182,9 +196,14 @@ export class Game {
     this.hud.pauseBtn.addEventListener('click', () => this.openPause());
     this.hud.muteBtn.addEventListener('click', () => this.toggleMute());
     this.hud.hintBtn.addEventListener('click', () => this.tapHint());
-    this.hud.switchBtn.addEventListener('click', () => this.level.playing && this.level.cycle());
+    this.hud.switchBtn.addEventListener('click', () => {
+      if (!this.level.playing) return;
+      this.level.cycle();
+      this.controls.used('switch');
+    });
     this.hud.onLight = (x, y) => {
       this.level.setLampPad(x, y);
+      this.controls.used('lamp');
       this.analytics.track({ type: 'input', kind: 'lamp' });
     };
     this.hud.onLightGrab = () => this.level.grabLamp();
@@ -399,9 +418,10 @@ export class Game {
   }
 
   /**
-   * Poki: a commercial break before every gameplayStart the player asked for: next level, retry, unpause,
+   * A midgame ad before every gameplayStart the player asked for: next level, retry, unpause,
    * a level from the grid, a mode from the menu. Not before campaign levels 1-2 (`levelIndex` 0-1; null =
-   * Daily / Endless), never on the session's first transition, and the SDK decides whether an ad plays.
+   * Daily / Endless), never on the session's first transition, and the SDK decides whether an ad plays
+   * (CrazyGames enforces its own ~3 min cooldown and answers `adCooldown` in between).
    * Closing the hint panel, coming back to the tab and resuming after a rewarded video don't ask.
    */
   private async adBreak(levelIndex: number | null) {
@@ -608,6 +628,7 @@ export class Game {
       parTime: r.level.parTime,
       isLast: this.index >= LEVELS.length - 1,
       bulbsEarned: earned,
+      bulbFor3Stars: this.store.stars(r.level.id) < 3,
     });
   }
 
@@ -672,7 +693,7 @@ export class Game {
     this.hud.toast((await copyText(text)) ? 'Copied — paste it anywhere' : "Couldn't copy", 2);
   }
 
-  /** The portal's link to today's Daily (Poki: its game page with ?gddaily=n); this page otherwise. */
+  /** The portal's link to today's Daily (CrazyGames: an invite link to its game page with daily=n); this page otherwise. */
   private async dailyLink() {
     try {
       if (this.portal.shareableURL) return await this.portal.shareableURL({ daily: dailyNumber(this.today) });
@@ -735,6 +756,8 @@ export class Game {
     this.arrow.hide();
     this.hud.showHand(null);
     this.endlessNewBest = this.store.recordEndless(run.score);
+    // CrazyGames' happytime is for rare highs (a new best), never for a plain level solve.
+    if (this.endlessNewBest) this.portal.happyTime?.();
     this.analytics.track({ type: 'endless-over', score: run.score, solves: run.solved });
     this.showEndlessOver();
   }
@@ -832,6 +855,7 @@ export class Game {
     this.elapsed += dt;
     this.tweens.update(dt);
     this.level.update(dt);
+    this.controls.setActive(this.level.running && !this.inAd && !this.inMenus);
     const keys = this.input.keyAxes();
     const arrows = this.input.arrowAxes();
     this.analytics.track({

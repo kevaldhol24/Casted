@@ -1,7 +1,6 @@
-import type { SaveData } from '../core/Store';
-import type { Portal } from './Portal';
+import { localSaveStorage, type Portal } from './Portal';
 
-/** Dev / own-site build: no ads, localStorage saves (handled by Store). Logs SDK events in dev to check coverage. */
+/** Dev / own-site build: no ads, localStorage saves. Logs SDK events in dev to check coverage. */
 export class LocalPortal implements Portal {
   private playing = false;
   private log(...args: unknown[]) {
@@ -37,8 +36,7 @@ export class LocalPortal implements Portal {
   happyTime() {
     this.log('happyTime');
   }
-  async save(_data: SaveData) {}
-  async load() {
-    return null;
+  storage() {
+    return localSaveStorage();
   }
 }

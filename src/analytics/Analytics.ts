@@ -1,10 +1,10 @@
 import type { HintTier } from '../core/Store';
 import type { LevelDef } from '../levels/levels';
-import type { Portal } from '../portal/Portal';
 
 /**
  * Analytics (progress doc, "Analytics spec"). Game code calls track(event) and nothing else:
- *  A  — PokiSDK measure(category, what, action) through the portal (funnels on Poki for Developers);
+ *  A  — funnel events (category, what, action). No portal receives them since the move to CrazyGames (its SDK has
+ *       no event API); dev keeps them in window.__castedAnalytics.measures for tests;
  *  A+ — one console.info line per attempt end, for playtest recordings;
  *  B  — session / level-attempt / ad-offer records. Sent only when the build sets VITE_TELEMETRY_URL (each attempt
  *       record when it ends, the rest with sendBeacon on page hide); otherwise kept in a 200-record buffer
@@ -20,7 +20,7 @@ type Outcome = 'solved' | 'quit-menu' | 'quit-levels' | 'restart' | 'tab-hidden'
 type Lamp = { yaw: number; pitch: number } | null;
 
 export type AnalyticsEvent =
-  /** Page start → gameLoadingFinished. */
+  /** Page start → loading finished. */
   | { type: 'loaded' }
   | { type: 'quality'; tier: string }
   /** The main menu is on screen (ends an unfinished attempt as quit-menu). */
@@ -289,7 +289,7 @@ export class Analytics {
   private closed = false;
   private tier = 'unknown';
 
-  constructor(private portal: Portal) {
+  constructor() {
     const { data, firstVisit } = loadStored();
     this.stored = data;
     this.persist();
@@ -349,7 +349,6 @@ export class Analytics {
   private measure(category: string, what: string, action: string) {
     for (const v of [category, what, action]) if (/[/^]/.test(v)) throw new Error(`[analytics] measure value "${v}" contains / or ^`);
     if (import.meta.env.DEV) this.measures.push([category, what, action]);
-    this.portal.measure?.(category, what, action);
   }
 
   /** Once per player (onboarding milestones). */

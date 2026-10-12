@@ -1,0 +1,16 @@
+{
+  "id": "w1-18",
+  "world": 1,
+  "targetName": "Rocking chair",
+  "object": {
+    "kind": "model",
+    "url": "models/w1/rocking_chair_junk.glb"
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [130, 140, -70],
+  "threshold": 0.77,
+  "parTime": 70,
+  "allowMirror": false,
+  "reveal": "rock",
+  "mask": "masks/w1-18.png"
+}

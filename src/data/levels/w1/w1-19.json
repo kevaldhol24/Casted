@@ -1,0 +1,16 @@
+{
+  "id": "w1-19",
+  "world": 1,
+  "targetName": "Gramophone",
+  "object": {
+    "kind": "model",
+    "url": "models/w1/gramophone_junk.glb"
+  },
+  "freeAxes": ["x", "y", "z"],
+  "startOffset": [-140, -120, 85],
+  "threshold": 0.85,
+  "parTime": 75,
+  "allowMirror": false,
+  "reveal": "strum",
+  "mask": "masks/w1-19.png"
+}

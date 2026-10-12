@@ -26,9 +26,14 @@ import { W3_LEVELS } from './models/w3.mjs';
 import { W4_LEVELS } from './models/w4.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-/** `npm run models -- 4` rebuilds only World 4 (any list of world numbers); no arguments = every world. */
-const only = process.argv.slice(2).map(Number);
-const want = (world) => !only.length || only.includes(world);
+/**
+ * `npm run models -- 4` rebuilds only World 4 (any list of world numbers); `npm run models -- w1-16 w1-17` rebuilds
+ * only those World 1 levels; no arguments = every world.
+ */
+const args = process.argv.slice(2);
+const onlyIds = args.filter((a) => /^w1-\d{2}$/.test(a));
+const only = args.filter((a) => !onlyIds.includes(a)).map(Number);
+const want = (world) => (!only.length && !onlyIds.length) || only.includes(world) || (world === 1 && onlyIds.length > 0);
 /** Must match src/levels/LevelLoader.ts (MODEL_RADIUS, normalizeModel's farthest-vertex radius) and the mask camera. */
 const MODEL_RADIUS = 1.3;
 const MASK_HALF = 1.45;
@@ -68,7 +73,7 @@ function chunk(type, data) {
 /** Mask PNG like the level editor's: shape opaque white, background transparent, top row first. */
 function maskPng(bits, size, height = size) {
   // 1-bit palette PNG: index 0 = transparent, 1 = opaque white (the Album masks with the alpha channel). About a
-  // third the size of the RGBA version, which Poki Inspector flagged under "Image optimization".
+  // third the size of the RGBA version, which a portal image audit flagged.
   const stride = Math.ceil(size / 8) + 1;
   const raw = Buffer.alloc(height * stride);
   for (let y = 0; y < height; y++) {
@@ -181,7 +186,7 @@ const report = (label, kb, model, cover, problems) => {
 };
 
 // --- World 1: one object per level ---------------------------------------------------------------
-for (const [id, def] of want(1) ? Object.entries(W1_MODELS) : []) {
+for (const [id, def] of want(1) ? Object.entries(W1_MODELS).filter(([id]) => !onlyIds.length || onlyIds.includes(id)) : []) {
   const model = def.build();
   const { all, center, radius, extra } = analyse(model);
   const s = MODEL_RADIUS / radius;
@@ -195,7 +200,7 @@ for (const [id, def] of want(1) ? Object.entries(W1_MODELS) : []) {
   const updated = { ...rest, object: { kind: 'model', url: `models/w1/${def.name}.glb` }, mask: `masks/${id}.png` };
   // Keep the hand-written key order: object right after targetName.
   const ordered = {};
-  for (const k of ['id', 'world', 'targetName', 'object', 'freeAxes', 'startOffset', 'threshold', 'parTime', 'allowMirror', 'reveal', 'endless', 'mask']) if (k in updated) ordered[k] = updated[k];
+  for (const k of ['id', 'world', 'targetName', 'object', 'freeAxes', 'startOffset', 'threshold', 'parTime', 'allowMirror', 'reveal', 'tip', 'endless', 'mask']) if (k in updated) ordered[k] = updated[k];
   write(jsonPath, formatJson(ordered));
   report(`${id} ${def.name}`, bytes / 1024, model, m.cover, [extra && `${extra} px outside core!`, m.edge && 'touches mask edge!']);
 }

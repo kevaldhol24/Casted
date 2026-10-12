@@ -1,4 +1,4 @@
-/** `<package version>-<poki|web>`, set by vite.config.ts. */
+/** `<package version>-<crazygames|web>`, set by vite.config.ts. */
 declare const __CASTED_BUILD__: string;
 
 interface ImportMetaEnv {

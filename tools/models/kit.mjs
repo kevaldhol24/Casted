@@ -381,7 +381,70 @@ export class Model {
   dualShadow(a, b, { spread, rows = 72, colors, band = 6, width = 1.3 }) {
     const s = Math.sin(THREE.MathUtils.degToRad(spread));
     const c = Math.cos(THREE.MathUtils.degToRad(spread));
-    const P = (ua, ub, y) => [(ua + ub) / (2 * c), y, (ub - ua) / (2 * s)];
+    return this.rowBlocks(a, b, (ua, ub, y) => [(ua + ub) / (2 * c), y, (ub - ua) / (2 * s)], { rows, colors, band, width });
+  }
+
+  /**
+   * A solid carved from two outlines at right angles (World 1 hard levels): from the light (looking down -Z) its
+   * shadow is exactly `front` (x, y); from the side (looking along X) it is `side` (z, y). Built like dualShadow:
+   * each horizontal slab is one block per pair of runs (front run in x × side run in z). Unlike shattered plates
+   * it has no gaps and no flat boards, so off the solution its shadow is a lump that gives nothing away; the side
+   * outline is a second, wrong picture (a red herring) the player can find first. Both outlines must cover every
+   * row (the caller scales them to the same height).
+   */
+  carve(front, side, { rows = 72, colors, band = 6, width = 1.3 }) {
+    return this.rowBlocks(front, side, (ua, ub, y) => [ua, y, ub], { rows, colors, band, width });
+  }
+
+  /**
+   * Decoy sheets: thin irregular panels standing edge-on to the light (each in a plane holding the light direction
+   * and a segment that lies inside `inside` with a margin), so at the solution each one casts only a hairline inside
+   * the outline; turned away, they throw large shapes that bury the real shadow. Non-core (the build checks their
+   * footprint stays inside the core's).
+   *
+   * @param inside (x, y) → boolean in model space
+   */
+  edgeSheets(inside, { count, half = 1, z = 0.9, thick = 0.014, minLen = 0.3, colors }) {
+    const r = this.rng;
+    const margin = thick / 2 + 0.045;
+    const ok = (x, y, nx, ny) => inside(x, y) && inside(x + nx * margin, y + ny * margin) && inside(x - nx * margin, y - ny * margin);
+    let placed = 0;
+    for (let tries = 0; placed < count && tries < 4000; tries++) {
+      const x = (r() * 2 - 1) * half;
+      const y = r() * 2 - 1;
+      const a = r() * Math.PI;
+      const dx = Math.cos(a), dy = Math.sin(a);
+      const nx = -dy, ny = dx;
+      if (!ok(x, y, nx, ny)) continue;
+      // Grow both ways while the segment (and its margin) stays inside.
+      let lo = 0, hi = 0;
+      while (lo > -2 && ok(x + dx * (lo - 0.01), y + dy * (lo - 0.01), nx, ny)) lo -= 0.01;
+      while (hi < 2 && ok(x + dx * (hi + 0.01), y + dy * (hi + 0.01), nx, ny)) hi += 0.01;
+      const len = hi - lo;
+      if (len < minLen) continue;
+      // An irregular panel in the (along-segment s, depth z) plane: s within [0, len], z within ±z.
+      const z0 = -z + r() * z * 0.6, z1 = z - r() * z * 0.6;
+      const pts = [
+        [0, z0 + r() * 0.2],
+        [len * (0.3 + r() * 0.4), z0],
+        [len, z0 + r() * 0.3],
+        [len, z1 - r() * 0.3],
+        [len * (0.3 + r() * 0.4), z1],
+        [0, z1 - r() * 0.2],
+      ];
+      const g = new THREE.ExtrudeGeometry(new THREE.Shape(V2(pts)), { depth: thick, bevelEnabled: false });
+      // Shape x → along the segment, shape y → light direction (z), extrusion → minus the segment's normal (keeps
+      // the basis right-handed, so faces stay outward).
+      const ox = x + dx * lo + nx * (thick / 2), oy = y + dy * lo + ny * (thick / 2);
+      g.applyMatrix4(new THREE.Matrix4().set(dx, 0, -nx, ox, dy, 0, -ny, oy, 0, 1, 0, 0, 0, 0, 0, 1));
+      this.parts.push({ geo: g, color: colors[Math.floor(r() * colors.length)], core: false });
+      placed++;
+    }
+    return placed;
+  }
+
+  /** The slab loop shared by dualShadow and carve: P maps (run A coord, run B coord, y) to a model-space point. */
+  rowBlocks(a, b, P, { rows, colors, band, width }) {
     const eps = 1e-4;
     const lost = { a: 0, b: 0 };
     for (let r = 0; r < rows; r++) {

@@ -1,6 +1,7 @@
 # Casted — shadow puzzle game
 
-3D browser puzzle game: rotate junk-looking objects under a light until the shadow matches a target silhouette. Three.js + TypeScript + Vite, targeting Poki and CrazyGames.
+3D browser puzzle game: rotate junk-looking objects under a light until the shadow matches a target silhouette. Three.js + TypeScript + Vite, targeting CrazyGames
+(Poki was dropped in October 2026: the submission stalled).
 
 ## Start every session here
 
@@ -36,15 +37,19 @@ Never add Claude/AI attribution (no `Co-Authored-By`, no "Generated with Claude 
 - `npm run dev` — dev server (http://localhost:5173)
 - `npm run build` — type-check + production build into `dist/` (relative paths, works from any subfolder)
 - `npm run preview` — serve the built `dist/`
-- `npm run dev:poki` — dev server in Poki mode: `PokiPortal` against a logging `window.PokiSDK` mock
-  (`src/portal/PokiMock.ts`; `window.__pokiLog` holds the ordered calls, the corner button or `?rewarded=fail` makes
-  rewarded breaks fail)
-- `npm run build:poki` — Poki build into `dist-poki/` (drag into Poki Inspector) plus `release/casted-poki-<version>.zip`
-  for upload: same game plus the Poki SDK script tag (its only off-bundle request). `tools/zip-build.mjs` fails the
+- `npm run dev:crazygames` — dev server in CrazyGames mode: `CrazyGamesPortal` against the real SDK v3, which runs
+  in its `local` environment on localhost (demo ad overlays, SDK calls logged to the console, Data module backed by
+  localStorage; `?muteAudio=true` forces the mute setting). Needs network for the SDK script
+- `npm run build:crazygames` — CrazyGames build into `dist-crazygames/` plus
+  `release/casted-crazygames-<version>.zip` for upload: same game plus the SDK script tag
+  (`https://sdk.crazygames.com/crazygames-sdk-v3.js`, its only off-bundle request). `tools/zip-build.mjs` fails the
   build if a path isn't relative or anything loads from another host. Every other build uses `LocalPortal`
 - `npm run models` — rebuild the authored models from `tools/models/` (`kit.mjs` shatter/junk/dual-shadow tools,
   `w1.mjs` … `w4.mjs`) → `public/models/w<N>/*.glb` (Draco) + `public/masks/*.png`; `npm run models -- 4` rebuilds
-  only World 4 (any list of worlds). World 1: points the level JSONs at the models (other fields kept). Worlds 2–4:
+  only World 4 (any list of worlds); `npm run models -- w1-16 w1-17` rebuilds only those World 1 levels (use it for
+  new World 1 levels so existing ones are left alone). World 1 hard levels listed in `CARVED` (`w1.mjs`) are one solid carved from
+  the target (front) and a decoy outline (side, a red herring) by `Model.carve()`, plus edge-on decoy sheets
+  (`Model.edgeSheets()`): no gaps or boards to line up. Calibrate their `threshold` so ~3° off still snaps World 1: points the level JSONs at the models (other fields kept). Worlds 2–4:
   write the whole level JSON from `w2.mjs` / `w3.mjs` / `w4.mjs` (World 2 piece offsets/scales computed; World 3 lamp
   solution/start copied; World 4 object scale computed, mask PNG = both shadows side by side)
 
@@ -65,7 +70,7 @@ solution), and drag with `page.mouse` to verify input (the lamp pad is `.light-p
 
 - `src/main.ts` — boot
 - `src/core/` — `Game` (loop, level flow), `Renderer` (WebGL, resize/DPR, camera fit), `Input` + `Arcball`
-  (screen-space rotation, inertia, axis locks), `Store` (versioned localStorage save)
+  (screen-space rotation, inertia, axis locks), `Store` (versioned save in the portal's storage: CrazyGames Data module, else localStorage)
 - `src/shadow/` — `ShadowScene` (wall, floor, light, object root, target outline/fill shader),
   `MaskRenderer` (light-space orthographic mask render to 128×128), `Matcher` (IoU)
 - `src/data/levels/w<N>/*.json` — one JSON per level (schema: `LevelDef` in `src/levels/levels.ts`)
@@ -77,17 +82,20 @@ solution), and drag with `page.mouse` to verify input (the lamp pad is `.light-p
   `src/shadow/ShadowScene.ts`
 - `src/tools/LevelEditor.ts` + `tools/level-editor.html` — dev-only level editor; its save endpoint is a dev-server
   plugin in `vite.config.ts`
-- `src/ui/` — HTML/CSS overlay (HUD, win screen, toasts)
-- `src/portal/` — `Portal` interface, `LocalPortal` (Netlify / dev), `PokiPortal` (`--mode poki`), `PokiMock` (dev only)
-- `src/analytics/Analytics.ts` — the only analytics entry point, `track(event)`: Poki `measure()` events (Layer A), one
+- `src/ui/` — HTML/CSS overlay (HUD, win screen, toasts). `ControlsHint` is the PC-only controls strip (bottom-left,
+  only the controls the level uses, each row ticked on first use, learned flags in localStorage `casted.controls`);
+  the pause menu's Controls page lists every control (mouse/keyboard on PC, gestures on touch)
+- `src/portal/` — `Portal` interface, `LocalPortal` (Netlify / dev), `CrazyGamesPortal` (`--mode crazygames`)
+- `src/analytics/Analytics.ts` — the only analytics entry point, `track(event)`: funnel events (Layer A, in memory only since
+  the CrazyGames SDK has no event API), one
   `[casted] …` console line per attempt (A+), session / attempt / ad records (B). B is sent only when the build sets
   `VITE_TELEMETRY_URL`; otherwise records stay in memory (`window.__castedAnalytics` in dev: `records`, `measures`,
-  `summaries`). Game code never calls `PokiSDK.measure` or `fetch` for analytics
+  `summaries`). Game code never calls `fetch` for analytics
 - `telemetry/` — Layer B backend, its own npm project (not part of the game build): Cloudflare Worker (`src/index.ts`,
   `POST /e`, origin allowlist, 64 KB cap, daily retention cron) + D1 (`schema.sql`), saved queries in `queries/`,
-  `npm test` for the record validator. Deploy steps and the Poki CSP URL are in `telemetry/README.md`
+  `npm test` for the record validator. Deploy steps are in `telemetry/README.md`
 - `public/privacy.html` — privacy policy (ships in every build; linked from Settings). Replace `CONTACT_EMAIL` before
-  requesting CSP
+  turning telemetry on
 - `src/util/` — tweens, seeded RNG
 
 ## Conventions
@@ -117,10 +125,13 @@ solution), and drag with `page.mouse` to verify input (the lamp pad is `.light-p
 - Keep Vite `base: './'` (portals require relative paths).
 - First load (Phase 3b Step 5): level 1's model (`w1-01`) is quantized, not Draco (`NO_DECODER` in
   `tools/build-models.mjs`), and preloaded from `index.html`; the Draco decoder (glTF WASM build only, the defaults are
-  stripped by a plugin in `vite.config.ts`) downloads in the background once a level is playing. `main.ts` doesn't
-  wait for `PokiSDK.init()`; `PokiPortal` queues SDK calls until init settles (Poki's core logs "not yet booted"
-  otherwise). If level 1's model changes, update the preload link in `index.html`.
-- Poki only (CrazyGames dropped). Ad breaks go through `Game.adBreak()` (commercial break before every gameplayStart
-  the player asked for, from level 3, never on the session's first transition) and `Game.rewarded()`; both run inside
-  `runAd()`, which mutes, blocks all input and suspends the level. `LevelController.suspend()/resume()` fire
-  gameplayStop/Start only on a real change, so they never double-fire.
+  stripped by a plugin in `vite.config.ts`) downloads in the background once a level is playing. `main.ts` awaits
+  `portal.init()` (capped at 4 s) before building the `Store`, since the CrazyGames save lives in the SDK's Data
+  module; on a timeout it boots on localStorage and the portal queues SDK calls until init settles. If level 1's model changes, update the preload link in `index.html`.
+- CrazyGames only (Poki dropped). Ad breaks go through `Game.adBreak()` (midgame ad before every gameplayStart
+  the player asked for, from level 3, never on the session's first transition; the SDK enforces its own ~3 min
+  cooldown) and `Game.rewarded()`; both run inside `runAd()`, which mutes, blocks all input and suspends the level.
+  `LevelController.suspend()/resume()` fire gameplayStop/Start only on a real change, so they never double-fire.
+  The SDK's `muteAudio` setting goes to `Audio.setForcedMute()` and overrides the in-game sound toggle.
+  `happytime()` fires only on a new Endless best (CrazyGames: not for plain level solves). Rewarded buttons are off
+  when the SDK reports an adblocker.

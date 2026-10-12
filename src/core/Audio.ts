@@ -17,6 +17,7 @@ export class GameAudio {
   private musicVol = 0.7;
   private sfxVol = 0.8;
   private muted = false;
+  private forcedMute = false;
   private adMuted = false;
 
   constructor() {
@@ -63,7 +64,7 @@ export class GameAudio {
   private applyVolumes() {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    this.master.gain.setTargetAtTime(this.muted || this.adMuted ? 0 : 1, t, 0.05);
+    this.master.gain.setTargetAtTime(this.muted || this.adMuted || this.forcedMute ? 0 : 1, t, 0.05);
     this.musicBus.gain.setTargetAtTime(this.musicVol * 0.5, t, 0.1);
     this.sfxBus.gain.setTargetAtTime(this.sfxVol, t, 0.05);
   }
@@ -76,6 +77,12 @@ export class GameAudio {
 
   setMuted(m: boolean) {
     this.muted = m;
+    this.applyVolumes();
+  }
+
+  /** The portal forces silence (CrazyGames' muteAudio): overrides the in-game sound toggle. */
+  setForcedMute(m: boolean) {
+    this.forcedMute = m;
     this.applyVolumes();
   }
 
