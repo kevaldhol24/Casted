@@ -139,16 +139,21 @@ export class CrazyGamesPortal implements Portal {
     }
   }
 
+  /**
+   * The Data module first; every write is mirrored to localStorage, so progress still survives if the module is off
+   * (the game was submitted without "Progress Save") or a write fails (1 MB cap).
+   */
   storage(): SaveStorage {
     const data = this.sdk?.data;
-    if (!data) return localSaveStorage();
+    const local = localSaveStorage();
+    if (!data) return local;
     return {
       getItem: (k) => {
         try {
-          return data.getItem(k);
-        } catch {
-          return null;
-        }
+          const v = data.getItem(k);
+          if (v != null) return v;
+        } catch {}
+        return local.getItem(k);
       },
       setItem: (k, v) => {
         try {
@@ -156,6 +161,9 @@ export class CrazyGamesPortal implements Portal {
         } catch (e) {
           this.warn(`data.setItem failed: ${e}`);
         }
+        try {
+          local.setItem(k, v);
+        } catch {}
       },
     };
   }
