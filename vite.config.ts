@@ -67,18 +67,19 @@ function levelEditor(): Plugin {
   };
 }
 
+export const CRAZYGAMES_SDK = 'https://sdk.crazygames.com/crazygames-sdk-v3.js';
+
 /**
- * Poki build (`vite build --mode poki`): the SDK script tag goes in before the game's module, so window.PokiSDK
- * exists at boot. It is the build's only off-bundle request, and Poki serves it. `dev --mode poki` gets no tag:
- * main.ts installs the logging mock instead.
+ * CrazyGames build and dev server (`--mode crazygames`): the SDK v3 script tag goes in before the game's module, so
+ * window.CrazyGames exists at boot. It is the build's only off-bundle request. On localhost the SDK runs in its
+ * 'local' environment (demo ad overlays, no real ads), so dev needs no mock.
  */
-function pokiSdk(): Plugin {
+function crazyGamesSdk(): Plugin {
   return {
-    name: 'casted-poki-sdk',
-    apply: 'build',
+    name: 'casted-crazygames-sdk',
     transformIndexHtml: {
       order: 'pre',
-      handler: () => [{ tag: 'script', attrs: { src: 'https://game-cdn.poki.com/scripts/v2/poki-sdk.js' }, injectTo: 'head' }],
+      handler: () => [{ tag: 'script', attrs: { src: CRAZYGAMES_SDK }, injectTo: 'head' }],
     },
   };
 }
@@ -105,8 +106,8 @@ const VERSION = (JSON.parse(readFileSync(new URL('./package.json', import.meta.u
 
 export default defineConfig(({ mode }) => ({
   base: './',
-  define: { __CASTED_BUILD__: JSON.stringify(`${VERSION}-${mode === 'poki' ? 'poki' : 'web'}`) },
-  plugins: [levelEditor(), dracoDefaultsOff(), ...(mode === 'poki' ? [pokiSdk()] : [])],
+  define: { __CASTED_BUILD__: JSON.stringify(`${VERSION}-${mode === 'crazygames' ? 'crazygames' : 'web'}`) },
+  plugins: [levelEditor(), dracoDefaultsOff(), ...(mode === 'crazygames' ? [crazyGamesSdk()] : [])],
   build: { target: 'es2020', assetsInlineLimit: 0, chunkSizeWarningLimit: 900 },
   server: { host: true },
   // Model loaders are imported lazily; pre-bundle them so the first model level doesn't hit a dev re-optimise (504).

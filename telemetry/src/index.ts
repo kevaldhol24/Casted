@@ -7,7 +7,7 @@ import { parseRecord, type Parsed } from './validate';
 
 export interface Env {
   DB: D1Database;
-  /** Comma-separated origins; `*` matches one subdomain label, e.g. https://*.poki-gdn.com */
+  /** Comma-separated origins; `*` matches one subdomain label, e.g. https://*.crazygames.com */
   ALLOWED_ORIGINS: string;
   RETENTION_DAYS?: string;
 }

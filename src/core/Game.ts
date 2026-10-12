@@ -29,8 +29,8 @@ import type { Analytics, Placement } from '../analytics/Analytics';
 import { Renderer } from './Renderer';
 import { BULBS, HINT_COST, type HintTier, type SaveData, Store } from './Store';
 
-/** After a rewarded video, the video buttons stay off this long. Poki paces its own ads, so none there. */
-const REWARDED_COOLDOWN_S = import.meta.env.MODE === 'poki' ? 0 : 60;
+/** After a rewarded video, the video buttons stay off this long. CrazyGames paces its own ads, so none there. */
+const REWARDED_COOLDOWN_S = import.meta.env.MODE === 'crazygames' ? 0 : 60;
 const NO_VIDEO = 'No video available right now — try again soon.';
 
 type Mode = 'campaign' | 'daily' | 'endless';
@@ -158,6 +158,8 @@ export class Game {
     this.level.onPrompt = (prompt) => this.analytics.track({ type: 'prompt', prompt });
     this.level.onSwitch = () => this.analytics.track({ type: 'switch' });
     this.applySettings(store.data.settings);
+    // CrazyGames' muteAudio setting wins over the in-game sound toggle.
+    portal.onForcedMute?.((m) => this.audio.setForcedMute(m));
     this.monitor.onSlow = () => this.downgrade();
 
     // UI wiring. Every button gets the paper-tick click sound.
@@ -399,9 +401,10 @@ export class Game {
   }
 
   /**
-   * Poki: a commercial break before every gameplayStart the player asked for: next level, retry, unpause,
+   * A midgame ad before every gameplayStart the player asked for: next level, retry, unpause,
    * a level from the grid, a mode from the menu. Not before campaign levels 1-2 (`levelIndex` 0-1; null =
-   * Daily / Endless), never on the session's first transition, and the SDK decides whether an ad plays.
+   * Daily / Endless), never on the session's first transition, and the SDK decides whether an ad plays
+   * (CrazyGames enforces its own ~3 min cooldown and answers `adCooldown` in between).
    * Closing the hint panel, coming back to the tab and resuming after a rewarded video don't ask.
    */
   private async adBreak(levelIndex: number | null) {
@@ -672,7 +675,7 @@ export class Game {
     this.hud.toast((await copyText(text)) ? 'Copied — paste it anywhere' : "Couldn't copy", 2);
   }
 
-  /** The portal's link to today's Daily (Poki: its game page with ?gddaily=n); this page otherwise. */
+  /** The portal's link to today's Daily (CrazyGames: an invite link to its game page with daily=n); this page otherwise. */
   private async dailyLink() {
     try {
       if (this.portal.shareableURL) return await this.portal.shareableURL({ daily: dailyNumber(this.today) });
@@ -735,6 +738,8 @@ export class Game {
     this.arrow.hide();
     this.hud.showHand(null);
     this.endlessNewBest = this.store.recordEndless(run.score);
+    // CrazyGames' happytime is for rare highs (a new best), never for a plain level solve.
+    if (this.endlessNewBest) this.portal.happyTime?.();
     this.analytics.track({ type: 'endless-over', score: run.score, solves: run.solved });
     this.showEndlessOver();
   }

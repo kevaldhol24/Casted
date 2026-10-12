@@ -40,26 +40,19 @@ Run everything from this folder (`telemetry/`).
 
 ## Turn it on in the game
 
-1. **Poki first.** Poki blocks every request outside the game's own files until it approves them. In Poki for
-   Developers → your game → **Settings → CSP**, request this exact URL:
+1. **Check CrazyGames' rules first.** The game's own analytics requests leave CrazyGames' domains; make sure the
+   build still meets their current submission requirements, and link the privacy page: it ships in the build as
+   `privacy.html` (linked from Settings in the game); the live copy is <https://castedweb.netlify.app/privacy.html>.
+   Replace `CONTACT_EMAIL` in `public/privacy.html` first.
+2. Build with the endpoint and upload the new build:
 
    ```
-   https://casted-telemetry.<your-subdomain>.workers.dev
+   VITE_TELEMETRY_URL=https://casted-telemetry.<your-subdomain>.workers.dev/e npm run build:crazygames
    ```
 
-   Poki also wants the privacy page: it ships in the build as `privacy.html` (linked from Settings in the game); the
-   live copy is <https://castedweb.netlify.app/privacy.html>. Replace `CONTACT_EMAIL` in `public/privacy.html` first.
-2. After approval, build with the endpoint and upload the new build:
-
-   ```
-   VITE_TELEMETRY_URL=https://casted-telemetry.<your-subdomain>.workers.dev/e npm run build:poki
-   ```
-
-   (PowerShell: `$env:VITE_TELEMETRY_URL="https://…/e"; npm run build:poki`.) Before approval, keep building without
-   it: a blocked request would show as a console error in Poki's QA.
-3. On the first Poki Inspector run, open DevTools → Network, find the `e` request and check its `Origin` header is
-   matched by `ALLOWED_ORIGINS` (Poki serves builds from `*.poki-gdn.com`). If it's a `403`, add that origin and
-   `npx wrangler deploy` again.
+   (PowerShell: `$env:VITE_TELEMETRY_URL="https://…/e"; npm run build:crazygames`.)
+3. On the first CrazyGames preview, open DevTools → Network, find the `e` request and check its `Origin` header is
+   matched by `ALLOWED_ORIGINS`. If it's a `403`, add that origin and `npx wrangler deploy` again.
 
 ## Saved queries
 

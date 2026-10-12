@@ -1,7 +1,7 @@
 /**
- * Zips a build folder for upload (npm run build:poki → release/casted-poki-<version>.zip), with index.html at the
- * zip's root as Poki expects. Before zipping it checks the build is portable: every path in index.html is
- * relative, and no text file loads anything from another host except the Poki SDK script tag.
+ * Zips a build folder for upload (npm run build:crazygames → release/casted-crazygames-<version>.zip), with
+ * index.html at the zip's root as CrazyGames expects. Before zipping it checks the build is portable: every path in
+ * index.html is relative, and no text file loads anything from another host except the CrazyGames SDK script tag.
  */
 import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, relative, resolve, dirname } from 'node:path';
@@ -9,8 +9,9 @@ import { fileURLToPath } from 'node:url';
 import { zipSync } from 'fflate';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const dir = resolve(root, process.argv[2] ?? 'dist-poki');
-const name = process.argv[3] ?? 'poki';
+const dir = resolve(root, process.argv[2] ?? 'dist-crazygames');
+const name = process.argv[3] ?? 'crazygames';
+const SDK = 'https://sdk.crazygames.com/crazygames-sdk-v3.js';
 const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 
 const files = [];
@@ -25,12 +26,12 @@ const files = [];
 const problems = [];
 const html = readFileSync(join(dir, 'index.html'), 'utf8');
 for (const [, url] of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
-  if (url.startsWith('data:') || url === 'https://game-cdn.poki.com/scripts/v2/poki-sdk.js') continue;
+  if (url.startsWith('data:') || url === SDK) continue;
   if (/^(\/|[a-z]+:)/i.test(url)) problems.push(`index.html: non-relative ${url}`);
 }
 // Remote loads in code/styles: url(http…), fetch("http…"), import("http…"), src="http…". Plain URL strings
 // (comments, XML namespaces) don't load anything and are ignored.
-const remote = /(?:url\(\s*['"]?|fetch\(\s*['"`]|import\(\s*['"`]|src\s*=\s*['"])(https?:)?\/\/(?!game-cdn\.poki\.com)/gi;
+const remote = /(?:url\(\s*['"]?|fetch\(\s*['"`]|import\(\s*['"`]|src\s*=\s*['"])(https?:)?\/\/(?!sdk\.crazygames\.com)/gi;
 for (const f of files.filter((f) => /\.(js|css|html)$/.test(f))) {
   const text = readFileSync(f, 'utf8');
   for (const m of text.matchAll(remote)) problems.push(`${relative(dir, f)}: remote load "${text.slice(m.index, m.index + 60)}"`);
@@ -46,4 +47,4 @@ const out = join(root, 'release', `casted-${name}-${version}.zip`);
 mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, zip);
 const raw = files.reduce((n, f) => n + statSync(f).size, 0);
-console.log(`✓ ${relative(root, out)}: ${files.length} files, ${(raw / 1024 / 1024).toFixed(2)} MB → ${(zip.length / 1024 / 1024).toFixed(2)} MB zipped (paths relative, no remote loads besides the Poki SDK)`);
+console.log(`✓ ${relative(root, out)}: ${files.length} files, ${(raw / 1024 / 1024).toFixed(2)} MB → ${(zip.length / 1024 / 1024).toFixed(2)} MB zipped (paths relative, no remote loads besides the CrazyGames SDK)`);

@@ -68,7 +68,7 @@ function chunk(type, data) {
 /** Mask PNG like the level editor's: shape opaque white, background transparent, top row first. */
 function maskPng(bits, size, height = size) {
   // 1-bit palette PNG: index 0 = transparent, 1 = opaque white (the Album masks with the alpha channel). About a
-  // third the size of the RGBA version, which Poki Inspector flagged under "Image optimization".
+  // third the size of the RGBA version, which a portal image audit flagged.
   const stride = Math.ceil(size / 8) + 1;
   const raw = Buffer.alloc(height * stride);
   for (let y = 0; y < height; y++) {

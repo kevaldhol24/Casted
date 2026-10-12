@@ -802,14 +802,13 @@ export class LevelController {
   }
 
   private async reveal() {
-    const { scene, tweens, renderer, portal, audio } = this.c;
+    const { scene, tweens, renderer, audio } = this.c;
     this.state = 'reveal';
     this.iou = 1;
     this.ious = this.ious.map(() => 1);
     audio.chime();
     audio.duck(true);
     if (!this.reduceMotion) scene.burst();
-    portal.happyTime?.();
     tweens.to(0.5, (k) => (scene.shadowSoftness = 3 - 2.5 * k));
     tweens.to(0.8, (k) => (scene.fill = k), easeInOutCubic);
     if (!this.reduceMotion) {

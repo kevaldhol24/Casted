@@ -1,4 +1,5 @@
 import { daysBetween } from '../levels/Daily';
+import { localSaveStorage, type SaveStorage } from '../portal/Portal';
 import type { QualitySetting } from './Quality';
 
 export interface LevelRecord {
@@ -66,17 +67,30 @@ const SHIELD_EVERY = 7;
 export const HINT_COST = { nudge: 1, peek: 2, reveal: 3 } as const;
 export type HintTier = keyof typeof HINT_COST;
 
-/** Versioned local save. Corrupt or missing data falls back to defaults; storage errors never crash the game. */
+/**
+ * Versioned save in the portal's storage (CrazyGames: its Data module; otherwise localStorage). Corrupt or missing
+ * data falls back to defaults; storage errors never crash the game.
+ */
 export class Store {
   data: SaveData;
 
-  constructor() {
-    this.data = Store.read();
+  constructor(private storage: SaveStorage = localSaveStorage()) {
+    this.data = Store.read(storage);
   }
 
-  private static read(): SaveData {
+  /** True when a save exists (a returning player). */
+  static exists(storage: SaveStorage): boolean {
     try {
-      const raw = localStorage.getItem(KEY);
+      return !!storage.getItem(KEY);
+    } catch {
+      return false;
+    }
+  }
+
+  private static read(storage: SaveStorage): SaveData {
+    try {
+      // A portal save that is still empty picks up a save this browser already holds locally.
+      const raw = storage.getItem(KEY) ?? localSaveStorage().getItem(KEY);
       if (!raw) return defaultSave();
       const parsed = JSON.parse(raw) as Partial<SaveData>;
       if (parsed.saveVersion !== 1) return defaultSave();
@@ -95,7 +109,7 @@ export class Store {
 
   save() {
     try {
-      localStorage.setItem(KEY, JSON.stringify(this.data));
+      this.storage.setItem(KEY, JSON.stringify(this.data));
     } catch {
       /* private mode / quota: keep playing without persistence */
     }
