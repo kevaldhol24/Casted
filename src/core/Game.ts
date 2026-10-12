@@ -11,6 +11,7 @@ import { ATTIC, OBJECT_POS, ShadowScene, paletteFor } from '../shadow/ShadowScen
 import { Album } from '../ui/Album';
 import { DebugView } from '../ui/DebugView';
 import { el, ICONS } from '../ui/dom';
+import { ControlsHint } from '../ui/ControlsHint';
 import { HintPanel } from '../ui/HintPanel';
 import { Hud } from '../ui/Hud';
 import { LevelSelect } from '../ui/LevelSelect';
@@ -58,6 +59,7 @@ export class Game {
   private levelSelect: LevelSelect;
   private hintPanel: HintPanel;
   private pause: PausePanel;
+  private controls: ControlsHint;
   private vignette = el('div', 'css-vignette');
   /** Covers the whole UI during an ad so no button or the lamp pad can be pressed. */
   private adBlock = el('div', 'ad-block');
@@ -113,6 +115,7 @@ export class Game {
     this.levelSelect = new LevelSelect(ui);
     this.hintPanel = new HintPanel(ui);
     this.pause = new PausePanel(ui);
+    this.controls = new ControlsHint(ui);
     ui.append(this.adBlock);
     const debug = new URLSearchParams(location.search).has('debug') ? new DebugView(ui, SCORE_SIZE) : null;
 
@@ -126,9 +129,11 @@ export class Game {
       onDrag: (i) => {
         if (this.level.lightOnly) {
           this.level.dragLamp(i);
+          this.controls.used('lamp');
           this.analytics.track({ type: 'input', kind: 'lamp' });
         } else {
           arcball.drag(i);
+          this.controls.used(i.roll && !i.yaw && !i.pitch ? 'twist' : 'turn');
           this.analytics.track({ type: 'drag', yaw: i.yaw, pitch: i.pitch, roll: i.roll });
         }
       },
@@ -136,6 +141,12 @@ export class Game {
       onKey: (code) => {
         // Only keys that turn the object or move the lamp count as acting (not Tab, Esc, H).
         if (/^(Key[WASDQE]|Arrow)/.test(code)) this.analytics.track({ type: 'input', kind: 'key' });
+        if (this.level.playing) {
+          if (/^Key[QE]$/.test(code)) this.controls.used('twist');
+          else if (/^Key[WASD]$/.test(code)) this.controls.used('turn');
+          else if (code.startsWith('Arrow')) this.controls.used(this.level.hasLight ? 'lamp' : 'turn');
+          else if (code === 'Tab') this.controls.used('switch');
+        }
         this.onKey(code);
       },
     });
@@ -157,6 +168,7 @@ export class Game {
     this.level.onComplete = (r) => this.onComplete(r);
     this.level.onPrompt = (prompt) => this.analytics.track({ type: 'prompt', prompt });
     this.level.onSwitch = () => this.analytics.track({ type: 'switch' });
+    this.level.onStart = () => this.controls.setLevel(this.level.controls);
     this.applySettings(store.data.settings);
     // CrazyGames' muteAudio setting wins over the in-game sound toggle.
     portal.onForcedMute?.((m) => this.audio.setForcedMute(m));
@@ -184,9 +196,14 @@ export class Game {
     this.hud.pauseBtn.addEventListener('click', () => this.openPause());
     this.hud.muteBtn.addEventListener('click', () => this.toggleMute());
     this.hud.hintBtn.addEventListener('click', () => this.tapHint());
-    this.hud.switchBtn.addEventListener('click', () => this.level.playing && this.level.cycle());
+    this.hud.switchBtn.addEventListener('click', () => {
+      if (!this.level.playing) return;
+      this.level.cycle();
+      this.controls.used('switch');
+    });
     this.hud.onLight = (x, y) => {
       this.level.setLampPad(x, y);
+      this.controls.used('lamp');
       this.analytics.track({ type: 'input', kind: 'lamp' });
     };
     this.hud.onLightGrab = () => this.level.grabLamp();
@@ -837,6 +854,7 @@ export class Game {
     this.elapsed += dt;
     this.tweens.update(dt);
     this.level.update(dt);
+    this.controls.setActive(this.level.running && !this.inAd && !this.inMenus);
     const keys = this.input.keyAxes();
     const arrows = this.input.arrowAxes();
     this.analytics.track({

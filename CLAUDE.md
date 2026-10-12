@@ -79,7 +79,9 @@ solution), and drag with `page.mouse` to verify input (the lamp pad is `.light-p
   `src/shadow/ShadowScene.ts`
 - `src/tools/LevelEditor.ts` + `tools/level-editor.html` — dev-only level editor; its save endpoint is a dev-server
   plugin in `vite.config.ts`
-- `src/ui/` — HTML/CSS overlay (HUD, win screen, toasts)
+- `src/ui/` — HTML/CSS overlay (HUD, win screen, toasts). `ControlsHint` is the PC-only controls strip (bottom-left,
+  only the controls the level uses, each row ticked on first use, learned flags in localStorage `casted.controls`);
+  the pause menu's Controls page lists every control (mouse/keyboard on PC, gestures on touch)
 - `src/portal/` — `Portal` interface, `LocalPortal` (Netlify / dev), `CrazyGamesPortal` (`--mode crazygames`)
 - `src/analytics/Analytics.ts` — the only analytics entry point, `track(event)`: funnel events (Layer A, in memory only since
   the CrazyGames SDK has no event API), one

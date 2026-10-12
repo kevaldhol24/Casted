@@ -1,13 +1,15 @@
 import type { SaveData } from '../core/Store';
+import { controlRow, isDesktop } from './ControlsHint';
 import { el } from './dom';
 
 type Settings = SaveData['settings'];
 
-/** Pause menu (Resume, Restart, Levels, Settings) and the Settings view in the same card. */
+/** Pause menu (Resume, Restart, Levels, Settings, Controls) and the Settings and Controls views in the same card. */
 export class PausePanel {
   private overlay = el('div', 'overlay center');
   private menu = el('div', 'pause-menu');
   private settingsView = el('div', 'settings');
+  private controlsView = el('div', 'controls-page');
   private title = el('h2', 'levels-title');
   onResume = () => {};
   onRestart = () => {};
@@ -25,12 +27,38 @@ export class PausePanel {
     const restart = el('button', 'btn-secondary interactive', 'Restart');
     const levels = el('button', 'btn-secondary interactive', 'Levels');
     const settings = el('button', 'btn-secondary interactive', 'Settings');
+    const controls = el('button', 'btn-secondary interactive', 'Controls');
     const menu = el('button', 'btn-secondary interactive', 'Menu');
     const row = el('div', 'btn-row');
     row.append(restart, levels);
     const row2 = el('div', 'btn-row');
-    row2.append(settings, menu);
-    this.menu.append(resume, row, row2);
+    row2.append(settings, controls);
+    const row3 = el('div', 'btn-row');
+    row3.append(menu);
+    this.menu.append(resume, row, row2, row3);
+
+    // Mouse and keyboard on PC, gestures on touch screens.
+    const rows = isDesktop()
+      ? [
+          controlRow('turn'),
+          controlRow('twist'),
+          `<span class="keys"><span class="kbd-mouse">Right-drag</span></span><span>Twist too</span>`,
+          controlRow('lamp'),
+          controlRow('switch'),
+          `<span class="keys"><kbd>H</kbd></span><span>Hint</span>`,
+          `<span class="keys"><kbd>Esc</kbd></span><span>Pause</span>`,
+        ]
+      : [
+          `<span class="keys"><span class="kbd-mouse">Drag</span></span><span>Turn</span>`,
+          `<span class="keys"><span class="kbd-mouse">Two-finger twist</span></span><span>Twist</span>`,
+          `<span class="keys"><span class="kbd-mouse">Lamp pad</span></span><span>Move the lamp</span>`,
+          `<span class="keys"><span class="kbd-mouse">Switch</span></span><span>Switch object</span>`,
+        ];
+    for (const r of rows) this.controlsView.append(el('div', 'controls-row', r));
+    const controlsBack = el('button', 'btn-secondary interactive', 'Back');
+    const controlsBackRow = el('div', 'btn-row');
+    controlsBackRow.append(controlsBack);
+    this.controlsView.append(controlsBackRow);
 
     const slider = (key: 'music' | 'sfx' | 'sensitivity', label: string, min: number, max: number, step: number) => {
       const wrap = el('label', 'setting');
@@ -88,7 +116,7 @@ export class PausePanel {
       backRow,
     );
 
-    card.append(this.title, this.menu, this.settingsView);
+    card.append(this.title, this.menu, this.settingsView, this.controlsView);
     this.overlay.append(card);
     parent.append(this.overlay);
 
@@ -96,6 +124,8 @@ export class PausePanel {
     restart.addEventListener('click', () => this.fire(this.onRestart));
     levels.addEventListener('click', () => this.fire(this.onLevels));
     settings.addEventListener('click', () => this.view('settings'));
+    controls.addEventListener('click', () => this.view('controls'));
+    controlsBack.addEventListener('click', () => this.view('menu'));
     menu.addEventListener('click', () => this.fire(this.onMenu));
     back.addEventListener('click', () => this.back());
     this.overlay.addEventListener('pointerdown', (e) => {
@@ -114,10 +144,11 @@ export class PausePanel {
     fn();
   }
 
-  private view(v: 'menu' | 'settings') {
-    this.title.textContent = v === 'menu' ? 'Paused' : 'Settings';
+  private view(v: 'menu' | 'settings' | 'controls') {
+    this.title.textContent = v === 'menu' ? 'Paused' : v === 'settings' ? 'Settings' : 'Controls';
     this.menu.style.display = v === 'menu' ? '' : 'none';
     this.settingsView.style.display = v === 'settings' ? '' : 'none';
+    this.controlsView.style.display = v === 'controls' ? '' : 'none';
   }
 
   /**

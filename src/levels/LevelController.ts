@@ -13,6 +13,7 @@ import type { Hud } from '../ui/Hud';
 import type { ArrowKind, ObjectArrow } from '../ui/ObjectArrow';
 import { easeInOutCubic, easeOutBack, easeOutCubic, type Tweens } from '../util/tween';
 import type { LevelObjectInstance } from './LevelLoader';
+import type { ControlsContext } from '../ui/ControlsHint';
 import { levelPieces, type Axis, type LevelDef, type LevelPiece } from './levels';
 
 export type LevelState = 'idle' | 'intro' | 'playing' | 'hinting' | 'snapping' | 'reveal' | 'done';
@@ -149,6 +150,8 @@ export class LevelController {
   onComplete: (r: LevelResult) => void = () => {};
   /** A prompt appeared (Analytics): 'hint-pulse', 'close-toast', 'switch-tip', 'level-tip'. */
   onPrompt: (type: string) => void = () => {};
+  /** The level became playable (the controls strip reads `controls`). */
+  onStart: () => void = () => {};
   /** The player switched the piece they turn (Analytics). */
   onSwitch: () => void = () => {};
 
@@ -201,6 +204,13 @@ export class LevelController {
   /** The player moves the lamp (World 3). */
   get hasLight() {
     return this.lamp !== null;
+  }
+
+  /** What the player can do in this level, for the controls strip. */
+  get controls(): ControlsContext {
+    const free = this.pieces.filter((p) => !p.def.locked);
+    const axes = new Set(free.flatMap((p) => p.def.freeAxes));
+    return { turn: axes.has('x') || axes.has('y'), twist: axes.has('z'), lamp: this.hasLight, lightOnly: this.lightOnly, switch: free.length > 1 };
   }
 
   /** Only the lamp moves (no object can turn): dragging anywhere moves the lamp. */
@@ -384,6 +394,7 @@ export class LevelController {
       }, this.reduceMotion ? easeOutCubic : easeOutBack)
       .then(() => {
         this.state = 'playing';
+        this.onStart();
         // Loaded behind the main menu: stay suspended until resume() (which fires gameplayStart).
         if (this.suspended) return;
         arcball.enabled = true;
