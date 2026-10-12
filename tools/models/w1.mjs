@@ -7,7 +7,8 @@
  * pieces, 4–5 into more, and from level 6 ("first looks-like-nothing object") into many deep ones. Levels 16–20
  * are the hard tail: detailed, asymmetric outlines in 12–15 deep pieces under heavy clutter.
  */
-import { SILHOUETTES } from '../../src/levels/shapes.ts';
+import * as THREE from 'three';
+import { SILHOUETTES, makeInsideTest, silhouetteBounds } from '../../src/levels/shapes.ts';
 import { C, Model } from './kit.mjs';
 
 const BOARDS = [C.wood, C.darkWood, C.sand, C.taupe];
@@ -39,6 +40,27 @@ const LEVELS = [
   ['w1-20', 'tRex', 2020, { pieces: 15, depth: 1.1, junk: 15, colors: MIXED }],
 ];
 
+/** Outline `name` scaled to y within ±1 (centred), as an (x, y) inside test plus its half-width in that frame. */
+function outline(name) {
+  const sil = SILHOUETTES[name]();
+  const box = silhouetteBounds(sil);
+  const inside = makeInsideTest(sil);
+  const cx = (box.min.x + box.max.x) / 2;
+  const cy = (box.min.y + box.max.y) / 2;
+  const k = (box.max.y - box.min.y) / 2;
+  const p = new THREE.Vector2();
+  return { inside: (x, y) => inside(p.set(cx + x * k, cy + y * k)), half: (box.max.x - box.min.x) / 2 / k };
+}
+
+/**
+ * Hard levels that aren't shattered boards: one solid carved from the target (front) and a decoy outline (side),
+ * plus edge-on decoy sheets. No gaps to line up and no boards to face the light; the side throws a clean, wrong
+ * picture. id → (seed) => Model.
+ */
+const CARVED = {
+  'w1-16': { side: 'cat', sheets: 6, junk: 5, colors: [C.tin, C.brass, C.darkWood, C.pale] },
+};
+
 /** id → { name (GLB file), build() } */
 export const W1_MODELS = Object.fromEntries(
   LEVELS.map(([id, shape, seed, t]) => [
@@ -46,6 +68,16 @@ export const W1_MODELS = Object.fromEntries(
     {
       name: `${shape.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)}_junk`,
       build() {
+        const carved = CARVED[id];
+        if (carved) {
+          const m = new Model(seed);
+          const front = outline(shape);
+          const side = outline(carved.side);
+          m.lost = m.carve(front.inside, side.inside, { colors: carved.colors, band: 5, width: Math.max(front.half, side.half) + 0.05 });
+          m.edgeSheets(front.inside, { count: carved.sheets, half: front.half, z: side.half + 0.25, colors: [C.tin, C.pale, C.sand] });
+          m.junkify(carved.junk, side.half + 0.1);
+          return m;
+        }
         const m = new Model(seed);
         m.shatter(SILHOUETTES[shape](), { pieces: t.pieces, depth: t.depth, colors: t.colors });
         m.junkify(t.junk, t.depth + 0.1);

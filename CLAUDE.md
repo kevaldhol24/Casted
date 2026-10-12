@@ -47,7 +47,9 @@ Never add Claude/AI attribution (no `Co-Authored-By`, no "Generated with Claude 
 - `npm run models` — rebuild the authored models from `tools/models/` (`kit.mjs` shatter/junk/dual-shadow tools,
   `w1.mjs` … `w4.mjs`) → `public/models/w<N>/*.glb` (Draco) + `public/masks/*.png`; `npm run models -- 4` rebuilds
   only World 4 (any list of worlds); `npm run models -- w1-16 w1-17` rebuilds only those World 1 levels (use it for
-  new World 1 levels so existing ones are left alone). World 1: points the level JSONs at the models (other fields kept). Worlds 2–4:
+  new World 1 levels so existing ones are left alone). World 1 hard levels listed in `CARVED` (`w1.mjs`) are one solid carved from
+  the target (front) and a decoy outline (side, a red herring) by `Model.carve()`, plus edge-on decoy sheets
+  (`Model.edgeSheets()`): no gaps or boards to line up. Calibrate their `threshold` so ~3° off still snaps World 1: points the level JSONs at the models (other fields kept). Worlds 2–4:
   write the whole level JSON from `w2.mjs` / `w3.mjs` / `w4.mjs` (World 2 piece offsets/scales computed; World 3 lamp
   solution/start copied; World 4 object scale computed, mask PNG = both shadows side by side)
 
