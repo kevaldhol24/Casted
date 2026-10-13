@@ -7,16 +7,19 @@ export interface HintPanelState {
   /** Rewarded ads usable right now (no adblock, not cooling down). */
   adReady: boolean;
   adCooldown: number;
+  /** A piece that can roll is visibly rolled off its solution: offer Straighten. */
+  straighten: boolean;
 }
 
 const TIERS: { tier: HintTier; name: string; what: string }[] = [
   { tier: 'nudge', name: 'Nudge', what: 'Which way to turn' },
+  { tier: 'straighten', name: 'Straighten', what: 'Fix the twist only' },
   { tier: 'peek', name: 'Peek', what: 'Turn halfway there' },
   { tier: 'reveal', name: 'Reveal', what: 'Almost solved' },
 ];
 
 /**
- * Three hint tiers with Bulb costs; Reveal can also be paid with a rewarded video. When the player can't
+ * Hint tiers (Straighten only when a twist is off) with Bulb costs; Reveal can also be paid with a rewarded video. When the player can't
  * afford a tier, a "+2 Bulbs" video offer appears. "Close" is the same size as the offers.
  */
 export class HintPanel {
@@ -59,6 +62,7 @@ export class HintPanel {
     this.balance.innerHTML = `<span class="bulb-inline">${ICONS.bulb}</span> ${s.bulbs} Bulbs`;
     this.note.textContent = s.adReady ? '' : 'No video available right now — try again soon.';
     for (const t of TIERS) {
+      if (t.tier === 'straighten' && !s.straighten) continue;
       const cost = HINT_COST[t.tier];
       const free = s.freeHint;
       const afford = free || s.bulbs >= cost;

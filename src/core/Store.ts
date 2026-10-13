@@ -67,7 +67,7 @@ export const defaultSave = (): SaveData => ({
 export const BULBS = { threeStar: 1, rewardedAd: 2, dailyLogin: 1, dailySolve: 2 } as const;
 const MAX_SHIELDS = 3;
 const SHIELD_EVERY = 7;
-export const HINT_COST = { nudge: 1, peek: 2, reveal: 3 } as const;
+export const HINT_COST = { nudge: 1, straighten: 1, peek: 2, reveal: 3 } as const;
 export type HintTier = keyof typeof HINT_COST;
 
 /**

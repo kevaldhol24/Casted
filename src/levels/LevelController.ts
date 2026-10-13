@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Arcball } from '../core/Arcball';
+import type { Arcball, TurntablePose } from '../core/Arcball';
 import type { GameAudio } from '../core/Audio';
 import type { Input, RotateIntent } from '../core/Input';
 import type { Renderer } from '../core/Renderer';
@@ -31,6 +31,8 @@ const SOLVED_SOFTNESS = 0.5;
 const HINT_PULSE_S = 45;
 /** Reveal hint leaves the player this far from the solution. */
 const REVEAL_LEFT_DEG = 15;
+/** Straighten is offered only when a piece is rolled at least this far (degrees) from its solution. */
+const STRAIGHTEN_MIN_DEG = 2;
 /** Assembly: if the player hasn't switched objects after this long, point at the Switch button. */
 const SWITCH_TIP_S = 8;
 /**
@@ -81,7 +83,21 @@ interface Piece {
   def: LevelPiece;
   /** Every rotation whose shadow matches (the authored one + symmetric flips that also match). */
   solutions: THREE.Quaternion[];
+  /**
+   * Roll-locked pieces turn as a turntable (Arcball.setTurntable): each solution's tilt and turn, so the snap and
+   * hints move them along the turntable and never add roll. null = the piece rotates freely.
+   */
+  solPoses: TurntablePose[] | null;
   lastQ: THREE.Quaternion;
+}
+
+/** Shortest signed difference between two angles, degrees (-180…180). */
+const wrap180 = (d: number) => ((((d + 180) % 360) + 360) % 360) - 180;
+
+/** A piece's pose to move from: its rotation, and its turntable tilt and turn if it has them. */
+interface From {
+  q: THREE.Quaternion;
+  pose: TurntablePose | null;
 }
 
 /** Bounds of the filled pixels as UV (0–1) min x, min y, max x, max y. */
@@ -223,7 +239,7 @@ export class LevelController {
 
   /** Dev/tests: put every piece (and the lamp) at its solution and score. */
   solveAll() {
-    for (const p of this.pieces) p.pivot.quaternion.copy(p.solutions[0]);
+    for (const p of this.pieces) this.moveToward(p, this.fromOf(p), 0, 1);
     if (this.lamp) this.setLamp(this.lampSol.yaw, this.lampSol.pitch);
     this.scoreSync();
   }
@@ -338,7 +354,10 @@ export class LevelController {
         pivot.scale.setScalar(d.scale);
       } else objects[0].root.scale.setScalar(d.scale);
       pivot.quaternion.copy(solved[i]);
-      return { pivot, def: d, solutions: [], lastQ: new THREE.Quaternion() };
+      // Roll locked (and something to turn): a turntable, so turning on the two axes never twists the object.
+      const turntable = !d.locked && d.freeAxes.length > 0 && !d.freeAxes.includes('z');
+      arcball.setTurntable(pivot, turntable ? solved[i] : null);
+      return { pivot, def: d, solutions: [], solPoses: null, lastQ: new THREE.Quaternion() };
     });
     root.updateMatrixWorld(true);
 
@@ -360,7 +379,11 @@ export class LevelController {
     this.displayTex.length = this.targets.length;
     scene.objectShadow = true;
 
-    this.pieces.forEach((p, i) => (p.solutions = this.findSolutions(i, solved[i])));
+    this.pieces.forEach((p, i) => {
+      const found = this.findSolutions(i, solved[i]);
+      p.solutions = found.map((f) => f.q);
+      p.solPoses = arcball.pose(p.pivot) ? found.map((f) => f.pose) : null;
+    });
     hud.setPieces(this.isAssembly ? this.pieces.map((p) => !!p.def.locked) : []);
     hud.lightControl = !!this.lamp;
     if (this.lamp) {
@@ -453,18 +476,22 @@ export class LevelController {
     for (let k = 1; k < this.pieces.length; k++) if (this.select((this.active + k) % this.pieces.length)) return;
   }
 
-  /** The piece's authored solution plus 180° flips about the light-space axes whose shadow also matches. */
-  private findSolutions(i: number, solution: THREE.Quaternion): THREE.Quaternion[] {
+  /**
+   * The piece's authored solution plus 180° flips about the light-space axes whose shadow also matches, each with
+   * its turntable pose (a flip about the light axis is a half tilt plus a half turn: Rz(180) = Rx(180)·Ry(180)).
+   */
+  private findSolutions(i: number, solution: THREE.Quaternion): { q: THREE.Quaternion; pose: TurntablePose }[] {
     const { mask } = this.c;
     const pivot = this.pieces[i].pivot;
     const cam = mask.camera.matrixWorld;
-    const out = [solution.clone()];
+    const out = [{ q: solution.clone(), pose: { pitch: 0, yaw: 0 } }];
+    const flipPoses: TurntablePose[] = [{ pitch: 180, yaw: 0 }, { pitch: 0, yaw: 180 }, { pitch: 180, yaw: 180 }];
     for (let col = 0; col < 3; col++) {
       const axis = new THREE.Vector3().setFromMatrixColumn(cam, col).normalize();
       const q = new THREE.Quaternion().setFromAxisAngle(axis, Math.PI).multiply(solution);
       pivot.quaternion.copy(q);
       pivot.updateMatrixWorld(true);
-      if (this.measure() >= 0.97) out.push(q);
+      if (this.measure() >= 0.97) out.push({ q, pose: flipPoses[col] });
     }
     pivot.quaternion.copy(solution);
     pivot.updateMatrixWorld(true);
@@ -481,6 +508,8 @@ export class LevelController {
       p.pivot.quaternion.copy(solved[i]);
       if (p.def.locked) return;
       const [px, py, pz] = p.def.startOffset;
+      // Turntable pieces start at a tilt and turn (a start roll, which they couldn't undo, is ignored).
+      if (arcball.pose(p.pivot)) return arcball.setPose(p.pivot, { pitch: px * k, yaw: py * k });
       arcball.target = p.pivot;
       arcball.apply(py * k, px * k, pz * k);
     });
@@ -667,11 +696,52 @@ export class LevelController {
     }
   }
 
-  private nearestSolution(p: Piece): THREE.Quaternion {
+  private nearestIndex(p: Piece): number {
     const q = p.pivot.quaternion;
-    let best = p.solutions[0];
-    for (const s of p.solutions) if (q.angleTo(s) < q.angleTo(best)) best = s;
+    let best = 0;
+    p.solutions.forEach((s, i) => {
+      if (q.angleTo(s) < q.angleTo(p.solutions[best])) best = i;
+    });
     return best;
+  }
+
+  private nearestSolution(p: Piece): THREE.Quaternion {
+    return p.solutions[this.nearestIndex(p)];
+  }
+
+  private fromOf(p: Piece): From {
+    return { q: p.pivot.quaternion.clone(), pose: this.c.arcball.pose(p.pivot) };
+  }
+
+  /**
+   * Put piece `p` share `k` of the way from `from` to its solution `si`: along the turntable for roll-locked
+   * pieces (tilt and turn each the short way round), else a slerp.
+   */
+  private moveToward(p: Piece, from: From, si: number, k: number) {
+    const to = p.solPoses?.[si];
+    if (from.pose && to) {
+      this.c.arcball.setPose(p.pivot, {
+        pitch: from.pose.pitch + wrap180(to.pitch - from.pose.pitch) * k,
+        yaw: from.pose.yaw + wrap180(to.yaw - from.pose.yaw) * k,
+      });
+    } else p.pivot.quaternion.slerpQuaternions(from.q, p.solutions[si], k);
+  }
+
+  /** The roll about the light's axis between a piece and its nearest solution (swing-twist decomposition). */
+  private rollFix(p: Piece): { q: THREE.Quaternion; deg: number } {
+    const n = new THREE.Vector3().setFromMatrixColumn(this.c.mask.camera.matrixWorld, 2).normalize();
+    // d takes the piece to the solution; its twist about n is the roll part.
+    const d = this.nearestSolution(p).clone().multiply(p.pivot.quaternion.clone().invert());
+    const along = d.x * n.x + d.y * n.y + d.z * n.z;
+    const q = new THREE.Quaternion(n.x * along, n.y * along, n.z * along, d.w);
+    if (q.lengthSq() < 1e-12) return { q: new THREE.Quaternion(), deg: 0 };
+    q.normalize();
+    return { q, deg: (2 * Math.acos(Math.min(1, Math.abs(q.w))) * 180) / Math.PI };
+  }
+
+  /** Straighten can help: a piece that can roll is visibly rolled away from its solution. */
+  get canStraighten(): boolean {
+    return this.pieces.some((p) => !p.def.locked && p.def.freeAxes.includes('z') && this.rollFix(p).deg >= STRAIGHTEN_MIN_DEG);
   }
 
   /** Assembly hints help the turnable piece furthest from its solution (and make it the active one). */
@@ -720,13 +790,14 @@ export class LevelController {
       return;
     }
 
-    const obj = piece.pivot;
-    const from = obj.quaternion.clone();
-    const to = this.nearestSolution(piece).clone();
-    const total = from.angleTo(to);
+    if (tier === 'straighten') return this.straighten();
+
+    const from = this.fromOf(piece);
+    const si = this.nearestIndex(piece);
+    const total = from.q.angleTo(piece.solutions[si]);
     // Peek and Reveal move the lamp too (by the same share for Peek; Reveal leaves it a few degrees off).
     const moveLamp = (kObj: number, kLamp: number) => {
-      obj.quaternion.slerpQuaternions(from, to, kObj);
+      this.moveToward(piece, from, si, kObj);
       if (lampFrom)
         this.setLamp(lampFrom.yaw + (this.lampSol.yaw - lampFrom.yaw) * kLamp, lampFrom.pitch + (this.lampSol.pitch - lampFrom.pitch) * kLamp);
     };
@@ -740,6 +811,34 @@ export class LevelController {
       await tweens.to(0.35, (t) => (scene.fill = 0.55 * t));
       await tweens.to(0.6, (t) => (scene.fill = 0.55 * (1 - t)));
     }
+    if (this.state !== 'hinting') return;
+    this.state = 'playing';
+    arcball.enabled = true;
+    this.scoreDirty = true;
+  }
+
+  /** Straighten hint: take out the roll only, on the rolled piece that's furthest off; the rest is left to the player. */
+  private async straighten() {
+    const { arcball, tweens } = this.c;
+    let pick: Piece | null = null;
+    let fix = { q: new THREE.Quaternion(), deg: 0 };
+    for (const p of this.pieces) {
+      if (p.def.locked || !p.def.freeAxes.includes('z')) continue;
+      const f = this.rollFix(p);
+      if (f.deg > fix.deg) {
+        fix = f;
+        pick = p;
+      }
+    }
+    if (!pick) return;
+    const piece = pick;
+    this.select(this.pieces.indexOf(piece), false);
+    const from = piece.pivot.quaternion.clone();
+    const to = fix.q.clone().multiply(from);
+    this.state = 'hinting';
+    arcball.enabled = false;
+    arcball.stop();
+    await tweens.to(0.7, (t) => piece.pivot.quaternion.slerpQuaternions(from, to, t), easeInOutCubic);
     if (this.state !== 'hinting') return;
     this.state = 'playing';
     arcball.enabled = true;
@@ -803,12 +902,12 @@ export class LevelController {
     scene.highlight(-1);
 
     const root = scene.objectRoot;
-    const moves = this.pieces.map((p) => ({ p, from: p.pivot.quaternion.clone(), to: this.nearestSolution(p) }));
+    const moves = this.pieces.map((p) => ({ p, from: this.fromOf(p), si: this.nearestIndex(p) }));
     const lampFrom = this.lamp ? { ...this.lamp } : null;
     const fromY = root.position.y;
     tweens
       .to(SNAP_TWEEN_S, (k) => {
-        for (const m of moves) m.p.pivot.quaternion.slerpQuaternions(m.from, m.to, k);
+        for (const m of moves) this.moveToward(m.p, m.from, m.si, k);
         if (lampFrom) this.setLamp(lampFrom.yaw + (this.lampSol.yaw - lampFrom.yaw) * k, lampFrom.pitch + (this.lampSol.pitch - lampFrom.pitch) * k);
         root.position.y = fromY + (OBJECT_POS.y - fromY) * k;
         hud.setMeter(this.meter + (1 - this.meter) * k);
