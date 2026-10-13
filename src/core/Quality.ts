@@ -11,9 +11,9 @@ export interface TierSpec {
   grain: boolean;
 }
 
-/** The design doc's quality table. */
+/** The design doc's quality table (high's shadow map raised to 2048: the shadow is the game's main picture). */
 export const TIERS: Record<Tier, TierSpec> = {
-  high: { dprCap: 2, shadowMap: 1024, shadowRadius: 3, bloom: true, vignette: true, grain: true },
+  high: { dprCap: 2, shadowMap: 2048, shadowRadius: 3, bloom: true, vignette: true, grain: true },
   medium: { dprCap: 1.5, shadowMap: 1024, shadowRadius: 3, bloom: false, vignette: true, grain: false },
   low: { dprCap: 1, shadowMap: 512, shadowRadius: 1.5, bloom: false, vignette: false, grain: false },
 };

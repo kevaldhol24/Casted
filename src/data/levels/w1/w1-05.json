@@ -6,8 +6,8 @@
     "kind": "model",
     "url": "models/w1/cat_junk.glb"
   },
-  "freeAxes": ["x", "y", "z"],
-  "startOffset": [75, -110, 40],
+  "freeAxes": ["x", "y"],
+  "startOffset": [75, -110, 0],
   "threshold": 0.9,
   "parTime": 35,
   "allowMirror": false,

@@ -24,6 +24,9 @@ const SNAP_HOLD_S = 0.3;
 const SNAP_TWEEN_S = 0.4;
 const DRAG_SCORE_INTERVAL_S = 1 / 15;
 const MAX_START_IOU = 0.5;
+/** Shadow blur (shadow-map texels) while playing, and once solved. Low: wider blur turns grainy at the edges. */
+const PLAY_SOFTNESS = 1.4;
+const SOLVED_SOFTNESS = 0.5;
 /** Hint button pulses once after this long with the meter never above 50%. */
 const HINT_PULSE_S = 45;
 /** Reveal hint leaves the player this far from the solution. */
@@ -369,8 +372,11 @@ export class LevelController {
 
     scene.fill = 0;
     scene.glow = 0;
-    scene.shadowSoftness = 3;
+    scene.shadowSoftness = PLAY_SOFTNESS;
     scene.outlineOpacity = 0;
+    scene.shine = 0;
+    scene.pop = 0;
+    hud.showTitle(null);
     this.scoreSync();
     this.meterFloor = Math.max(0.5, Math.min(this.iou + 0.03, level.threshold - 0.2));
     this.meter = meterFromIou(this.iou, level.threshold, this.meterFloor);
@@ -819,8 +825,16 @@ export class LevelController {
     this.ious = this.ious.map(() => 1);
     audio.chime();
     audio.duck(true);
-    if (!this.reduceMotion) scene.burst();
-    tweens.to(0.5, (k) => (scene.shadowSoftness = 3 - 2.5 * k));
+    // The name takes the HUD's place at the top, clear of the shadow.
+    this.c.hud.visible = false;
+    this.c.hud.showTitle(this.level.targetName);
+    if (!this.reduceMotion) {
+      scene.burst();
+      // The painted shape swells and settles, then a highlight sweeps across it.
+      tweens.to(0.7, (k) => (scene.pop = 0.09 * Math.sin(k * Math.PI) * (1 - 0.4 * k)), (t) => t);
+      tweens.to(0.45, () => {}).then(() => tweens.to(0.75, (k) => (scene.shine = k), easeInOutCubic));
+    }
+    tweens.to(0.5, (k) => (scene.shadowSoftness = PLAY_SOFTNESS - (PLAY_SOFTNESS - SOLVED_SOFTNESS) * k));
     tweens.to(0.8, (k) => (scene.fill = k), easeInOutCubic);
     if (!this.reduceMotion) {
       await tweens.to(0.15, (k) => (renderer.push = 0.45 * k), easeOutCubic);
@@ -836,6 +850,9 @@ export class LevelController {
     audio.duck(false);
 
     const stars = this.hintsUsed > 0 ? 1 : this.time <= this.level.parTime ? 3 : 2;
+    scene.pop = 0;
+    scene.shine = 0;
+    this.c.hud.showTitle(null);
     this.state = 'done';
     this.c.hud.visible = false;
     this.onComplete({ level: this.level, time: this.time, stars, hintsUsed: this.hintsUsed, peakIou: this.peakIou });

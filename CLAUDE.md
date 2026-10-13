@@ -71,7 +71,9 @@ solution), and drag with `page.mouse` to verify input (the lamp pad is `.light-p
 - `src/main.ts` — boot
 - `src/core/` — `Game` (loop, level flow), `Renderer` (WebGL, resize/DPR, camera fit), `Input` + `Arcball`
   (screen-space rotation, inertia, axis locks), `Store` (versioned save in the portal's storage: CrazyGames Data module, else localStorage)
-- `src/shadow/` — `ShadowScene` (wall, floor, light, object root, target outline/fill shader),
+- `src/shadow/` — `ShadowScene` (wall, floor, light, object root, target outline/fill shader), `Room` (light pool
+  that darkens the room away from the shadow, generated floor textures, per-world props at the view's edges,
+  outside the shadow camera and the mask layer),
   `MaskRenderer` (light-space orthographic mask render to 128×128), `Matcher` (IoU)
 - `src/data/levels/w<N>/*.json` — one JSON per level (schema: `LevelDef` in `src/levels/levels.ts`)
 - `src/levels/` — `levels.ts` (schema + loads the JSON), `LevelLoader.ts` (procedural objects + GLB/Draco, lazy-loaded),
@@ -101,6 +103,9 @@ solution), and drag with `page.mouse` to verify input (the lamp pad is `.light-p
 ## Conventions
 
 - No frameworks for UI: vanilla TS + CSS over the canvas.
+- Keys: read by physical position (`KeyboardEvent.code`); on-screen labels go through `keyLabel()` (`ControlsHint.ts`,
+  follows the player's layout, e.g. ZQSD on AZERTY). Never bind Escape (it leaves fullscreen; CrazyGames restricted
+  keys): P pauses.
 - Target masks are rendered at level load from the solution rotation with the same mask code path, so a perfect
   solve always scores 1.0. (The editor's PNG masks are only used by the Album.)
 - Assembly levels (World 2+) have `pieces` instead of `object`: each piece has its own model, light-space `offset`,

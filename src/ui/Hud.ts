@@ -24,6 +24,8 @@ export class Hud {
   private dualFills = [el('div', 'dual-fill stripes'), el('div', 'dual-fill dots')];
   private timer = el('div', 'chip hud-timer');
   private toastEl = el('div', 'toast');
+  /** The solved shape's name, popped in over the wall during the reveal. */
+  private titleEl = el('div', 'reveal-title');
   private hand = el('div', 'hand', ICONS.hand);
   /**
    * Assembly levels: one Switch button (cycles the object being turned) with a dot per object under it. No
@@ -83,7 +85,7 @@ export class Hud {
     this.lightPad.addEventListener('pointermove', this.padMove);
     this.lightPad.addEventListener('pointerup', this.padUp);
     this.lightPad.addEventListener('pointercancel', this.padUp);
-    parent.append(this.root, this.switchWrap, this.lightPad, this.toastEl, this.hand);
+    parent.append(this.root, this.switchWrap, this.lightPad, this.toastEl, this.titleEl, this.hand);
   }
 
   setLevel(text: string) {
@@ -228,6 +230,15 @@ export class Hud {
     this.toastEl.classList.add('show');
     clearTimeout(this.toastTimer);
     this.toastTimer = window.setTimeout(() => this.toastEl.classList.remove('show'), seconds * 1000);
+  }
+
+  /** Reveal: show the solved shape's name (null hides it). */
+  showTitle(text: string | null) {
+    this.titleEl.classList.remove('show');
+    if (!text) return;
+    this.titleEl.textContent = text;
+    void this.titleEl.offsetWidth;
+    this.titleEl.classList.add('show');
   }
 
   /** Wordless drag demo: a hand swiping along the level's free axis. */

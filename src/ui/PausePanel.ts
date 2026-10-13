@@ -1,5 +1,5 @@
 import type { SaveData } from '../core/Store';
-import { controlRow, isDesktop } from './ControlsHint';
+import { controlRow, isDesktop, keyLabel } from './ControlsHint';
 import { el } from './dom';
 
 type Settings = SaveData['settings'];
@@ -10,6 +10,7 @@ export class PausePanel {
   private menu = el('div', 'pause-menu');
   private settingsView = el('div', 'settings');
   private controlsView = el('div', 'controls-page');
+  private controlsBackRow = el('div', 'btn-row');
   private title = el('h2', 'levels-title');
   onResume = () => {};
   onRestart = () => {};
@@ -37,28 +38,8 @@ export class PausePanel {
     row3.append(menu);
     this.menu.append(resume, row, row2, row3);
 
-    // Mouse and keyboard on PC, gestures on touch screens.
-    const rows = isDesktop()
-      ? [
-          controlRow('turn'),
-          controlRow('twist'),
-          `<span class="keys"><span class="kbd-mouse">Right-drag</span></span><span>Twist too</span>`,
-          controlRow('lamp'),
-          controlRow('switch'),
-          `<span class="keys"><kbd>H</kbd></span><span>Hint</span>`,
-          `<span class="keys"><kbd>Esc</kbd></span><span>Pause</span>`,
-        ]
-      : [
-          `<span class="keys"><span class="kbd-mouse">Drag</span></span><span>Turn</span>`,
-          `<span class="keys"><span class="kbd-mouse">Two-finger twist</span></span><span>Twist</span>`,
-          `<span class="keys"><span class="kbd-mouse">Lamp pad</span></span><span>Move the lamp</span>`,
-          `<span class="keys"><span class="kbd-mouse">Switch</span></span><span>Switch object</span>`,
-        ];
-    for (const r of rows) this.controlsView.append(el('div', 'controls-row', r));
     const controlsBack = el('button', 'btn-secondary interactive', 'Back');
-    const controlsBackRow = el('div', 'btn-row');
-    controlsBackRow.append(controlsBack);
-    this.controlsView.append(controlsBackRow);
+    this.controlsBackRow.append(controlsBack);
 
     const slider = (key: 'music' | 'sfx' | 'sensitivity', label: string, min: number, max: number, step: number) => {
       const wrap = el('label', 'setting');
@@ -144,7 +125,34 @@ export class PausePanel {
     fn();
   }
 
+  /**
+   * Mouse and keyboard on PC, gestures on touch screens. Built when opened: key labels follow the keyboard layout,
+   * which loads after boot. No Escape anywhere: it leaves fullscreen in the browser (CrazyGames restricted keys).
+   */
+  private buildControls() {
+    const rows = isDesktop()
+      ? [
+          controlRow('turn'),
+          controlRow('twist'),
+          `<span class="keys"><span class="kbd-mouse">Right-drag</span></span><span>Twist too</span>`,
+          controlRow('lamp'),
+          controlRow('switch'),
+          `<span class="keys"><kbd>${keyLabel('KeyH')}</kbd></span><span>Hint</span>`,
+          `<span class="keys"><kbd>${keyLabel('KeyP')}</kbd></span><span>Pause</span>`,
+        ]
+      : [
+          `<span class="keys"><span class="kbd-mouse">Drag</span></span><span>Turn</span>`,
+          `<span class="keys"><span class="kbd-mouse">Two-finger twist</span></span><span>Twist</span>`,
+          `<span class="keys"><span class="kbd-mouse">Lamp pad</span></span><span>Move the lamp</span>`,
+          `<span class="keys"><span class="kbd-mouse">Switch</span></span><span>Switch object</span>`,
+        ];
+    this.controlsView.innerHTML = '';
+    for (const r of rows) this.controlsView.append(el('div', 'controls-row', r));
+    this.controlsView.append(this.controlsBackRow);
+  }
+
   private view(v: 'menu' | 'settings' | 'controls') {
+    if (v === 'controls') this.buildControls();
     this.title.textContent = v === 'menu' ? 'Paused' : v === 'settings' ? 'Settings' : 'Controls';
     this.menu.style.display = v === 'menu' ? '' : 'none';
     this.settingsView.style.display = v === 'settings' ? '' : 'none';

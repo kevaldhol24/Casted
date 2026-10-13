@@ -139,7 +139,7 @@ export class Game {
       },
       onRelease: () => arcball.release(),
       onKey: (code) => {
-        // Only keys that turn the object or move the lamp count as acting (not Tab, Esc, H).
+        // Only keys that turn the object or move the lamp count as acting (not Tab, P, H).
         if (/^(Key[WASDQE]|Arrow)/.test(code)) this.analytics.track({ type: 'input', kind: 'key' });
         if (this.level.playing) {
           if (/^Key[QE]$/.test(code)) this.controls.used('twist');
@@ -168,7 +168,12 @@ export class Game {
     this.level.onComplete = (r) => this.onComplete(r);
     this.level.onPrompt = (prompt) => this.analytics.track({ type: 'prompt', prompt });
     this.level.onSwitch = () => this.analytics.track({ type: 'switch' });
-    this.level.onStart = () => this.controls.setLevel(this.level.controls);
+    this.level.onStart = () => {
+      const ctx = this.level.controls;
+      this.controls.setLevel(ctx);
+      const tip = this.controls.touchTip(ctx);
+      if (tip && !this.level.isSuspended) this.hud.toast(tip, 3.2);
+    };
     this.applySettings(store.data.settings);
     // CrazyGames' muteAudio setting wins over the in-game sound toggle.
     portal.onForcedMute?.((m) => this.audio.setForcedMute(m));
@@ -808,7 +813,8 @@ export class Game {
 
   private onKey(code: string) {
     if (this.inAd || this.inMenus || this.card.open) return;
-    if (code === 'Escape' || code === 'KeyP') {
+    // P, never Escape: Escape leaves fullscreen in the browser (CrazyGames restricted keys).
+    if (code === 'KeyP') {
       if (this.levelSelect.open) {
         this.levelSelect.hide();
         this.unpause();

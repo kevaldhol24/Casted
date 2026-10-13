@@ -7,6 +7,8 @@ export class GameAudio {
   private ctx: AudioContext | null = null;
   private master!: GainNode;
   private musicBus!: GainNode;
+  /** Music goes in here: straight to the music bus plus a soft echo (a room around the music box). */
+  private musicIn!: GainNode;
   private sfxBus!: GainNode;
   private duckGain!: GainNode;
   private noise!: AudioBuffer;
@@ -48,6 +50,20 @@ export class GameAudio {
     this.duckGain.connect(this.master);
     this.musicBus = ctx.createGain();
     this.musicBus.connect(this.duckGain);
+    this.musicIn = ctx.createGain();
+    this.musicIn.connect(this.musicBus);
+    const delay = ctx.createDelay(1);
+    delay.delayTime.value = 0.36;
+    const feedback = ctx.createGain();
+    feedback.gain.value = 0.3;
+    const tone = ctx.createBiquadFilter();
+    tone.type = 'lowpass';
+    tone.frequency.value = 2200;
+    const wet = ctx.createGain();
+    wet.gain.value = 0.35;
+    this.musicIn.connect(delay);
+    delay.connect(tone).connect(feedback).connect(delay);
+    tone.connect(wet).connect(this.musicBus);
     this.sfxBus = ctx.createGain();
     this.sfxBus.connect(this.master);
     this.applyVolumes();
@@ -189,6 +205,8 @@ export class GameAudio {
     src.connect(f).connect(g).connect(this.sfxBus);
     src.start(t);
     src.stop(t + 0.6);
+    // A rising sparkle after the bell: the reveal's little fanfare.
+    [1046.5, 1318.5, 1568, 2093].forEach((f, i) => this.tone(f, t + 0.32 + i * 0.075, 0.6, 0.05, 'triangle'));
   }
 
   /** One star landing; index raises the pitch. */
@@ -227,7 +245,16 @@ export class GameAudio {
 
   // --- music ------------------------------------------------------------------------------------
 
-  /** Calm generative loop: four warm pad chords with sparse plucks, ~9 s per chord. */
+  /** A music-box note: a sine with a quick bright overtone. */
+  private bell(freq: number, start: number, vol: number) {
+    this.tone(freq, start, 1.6, vol, 'sine', this.musicIn);
+    this.tone(freq * 2, start, 0.4, vol * 0.3, 'sine', this.musicIn);
+  }
+
+  /**
+   * Calm generative loop, ~9 s per chord: a warm pad, a soft bass under it, and a music-box melody that wanders
+   * through the chord's notes (with rests), all through a gentle echo.
+   */
   private startMusic() {
     const chords = [
       [220, 261.63, 329.63, 392],
@@ -243,8 +270,8 @@ export class GameAudio {
       const chord = chords[this.musicStep % chords.length];
       const lp = this.ctx.createBiquadFilter();
       lp.type = 'lowpass';
-      lp.frequency.value = 900;
-      lp.connect(this.musicBus);
+      lp.frequency.value = 1000;
+      lp.connect(this.musicIn);
       for (const f of chord) {
         for (const detune of [-6, 6]) {
           const o = this.ctx.createOscillator();
@@ -261,10 +288,26 @@ export class GameAudio {
           o.stop(t + chordLen + 1.6);
         }
       }
-      // A few plucks from the chord, at gentle random offsets.
-      for (let i = 0; i < 4; i++) {
-        const f = chord[Math.floor(Math.random() * chord.length)] * 2;
-        this.tone(f, t + 1 + i * 2 + Math.random() * 0.6, 1.4, 0.035, 'triangle', this.musicBus);
+      // Bass: the chord's root, two octaves down, swelling in and out.
+      const bass = this.ctx.createOscillator();
+      const bg = this.ctx.createGain();
+      bass.type = 'sine';
+      bass.frequency.value = chord[0] / 2;
+      bg.gain.setValueAtTime(0, t);
+      bg.gain.linearRampToValueAtTime(0.07, t + 1.5);
+      bg.gain.setValueAtTime(0.07, t + chordLen - 1.5);
+      bg.gain.linearRampToValueAtTime(0, t + chordLen + 1);
+      bass.connect(bg).connect(this.musicIn);
+      bass.start(t);
+      bass.stop(t + chordLen + 1.1);
+      // Melody: a step-wise walk over the chord's notes an octave up, one note a beat, about a quarter rests.
+      const notes = [...chord.map((f) => f * 2), chord[0] * 4, chord[1] * 4];
+      let at = Math.floor(Math.random() * notes.length);
+      const beat = 0.75;
+      for (let i = 0; i < Math.floor(chordLen / beat) - 1; i++) {
+        at = Math.max(0, Math.min(notes.length - 1, at + [-1, 0, 1, 1, -1, 2, -2][Math.floor(Math.random() * 7)]));
+        if (Math.random() < 0.28) continue;
+        this.bell(notes[at], t + 0.5 + i * beat + (i % 2 ? 0.04 : 0), i % 4 === 0 ? 0.045 : 0.03);
       }
       this.musicStep++;
     };

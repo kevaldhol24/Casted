@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { LevelObjectInstance } from '../levels/LevelLoader';
 import { REVEALS, type RevealKind } from '../levels/levels';
 import { MASK_LAYER } from './MaskRenderer';
+import { buildDecor, floorMap, pool, poolify, type DecorKind, type FloorPattern } from './Room';
 
 export const WALL_Z = -2.6;
 /** Assembly: opacity of the pieces the player isn't turning. */
@@ -46,6 +47,9 @@ export interface WorldPalette {
   /** Wall surface: Attic plaster, Kitchen tiles, Workshop pegboard or Theatre backdrop (generated normal maps). */
   wallPattern: 'plaster' | 'tiles' | 'pegboard' | 'curtain';
   skirting: string;
+  floorPattern: FloorPattern;
+  /** Props at the edges of the room. */
+  decor: DecorKind;
   /**
    * Dual-shadow levels (World 4): the second lamp's colour (`light` is the first's), and the outline colour of each
    * lamp's shadow. A lamp's shadow is lit only by the other lamp, so it takes that lamp's colour; its outline
@@ -58,12 +62,14 @@ export interface WorldPalette {
 export const ATTIC: WorldPalette = {
   background: '#2b2019',
   wall: '#d8c3a0',
-  floor: '#5e4634',
+  floor: '#8a6646',
   light: '#ffd9a8',
   accent: '#f2a43a',
   objects: ['#b8a58c', '#a8917a', '#c9b79c', '#9c8a76'],
   wallPattern: 'plaster',
   skirting: '#6b4e38',
+  floorPattern: 'planks',
+  decor: 'attic',
 };
 
 /** World 2 — The Kitchen: cream tiles, cool morning white, mint accent. */
@@ -76,30 +82,36 @@ export const KITCHEN: WorldPalette = {
   objects: ['#d7d2c6', '#b9c6c1', '#cdbb9f', '#a7b5ae'],
   wallPattern: 'tiles',
   skirting: '#a3998a',
+  floorPattern: 'checker',
+  decor: 'kitchen',
 };
 
 /** World 3 — The Workshop: dark teal, yellow lamp, orange accent, pegboard wall. */
 export const WORKSHOP: WorldPalette = {
   background: '#163a3a',
   wall: '#cdb58f',
-  floor: '#56605d',
+  floor: '#6b7572',
   light: '#ffe49a',
   accent: '#f08a3c',
   objects: ['#c9b48f', '#9fa8a3', '#b98c5f', '#8c9a96'],
   wallPattern: 'pegboard',
   skirting: '#24504f',
+  floorPattern: 'concrete',
+  decor: 'workshop',
 };
 
 /** World 4 — The Theatre: deep red velvet, warm + cool spotlights, gold accent, a draped backdrop. */
 export const THEATRE: WorldPalette = {
   background: '#3a0f16',
   wall: '#d6c6b4',
-  floor: '#4a2a22',
+  floor: '#6a3c2a',
   light: '#ffc583',
   accent: '#e8c25a',
   objects: ['#c4a052', '#8e3a3e', '#ddd0b2', '#4a3a33'],
   wallPattern: 'curtain',
   skirting: '#6e1c24',
+  floorPattern: 'planks',
+  decor: 'theatre',
   dual: { light: '#93bbff', outlines: ['#7fb0ff', '#ffab4f'] },
 };
 
@@ -131,6 +143,8 @@ const outlineFrag = /* glsl */ `
   uniform float uAnimAmp;
   uniform vec4 uBox; // target bounds in mask UV: min.xy, max.xy
   uniform int uPattern; // dual shadows: 1 = stripes, 2 = dots inside the outline (colour-blind safe)
+  uniform float uShine; // reveal: 0 → 1 sweeps a highlight across the painted shape
+  uniform float uPop;   // reveal: how much the painted shape swells (0 = still)
   varying vec2 vUv;
   varying vec3 vWorld;
 
@@ -199,20 +213,35 @@ const outlineFrag = /* glsl */ `
   }
 
   void main() {
-    float m = texture2D(uMask, warp(vUv)).r;
+    vec2 lo = uBox.xy, hi = uBox.zw;
+    vec2 uv = vUv;
+    // Reveal pop: the painted shape swells briefly about its centre.
+    if (uPop != 0.0) {
+      vec2 c = (lo + hi) * 0.5;
+      uv = c + (uv - c) / (1.0 + uPop);
+    }
+    float m = texture2D(uMask, warp(uv)).r;
     float w = fwidth(m) * 1.5 + 0.02;
-    float edge = 1.0 - smoothstep(0.0, w + 0.06, abs(m - 0.5));
-    float dash = step(0.0, sin((vWorld.x * 0.8 + vWorld.y) * 26.0 - uTime * 1.5));
-    float line = edge * mix(0.6 * dash, 1.0, uGlow);
+    // A solid line (dashes broke up on thin and busy shapes), with a soft light running along it.
+    float edge = 1.0 - smoothstep(0.0, w + 0.07, abs(m - 0.5));
+    float run = 0.5 + 0.5 * sin((vWorld.x * 0.8 + vWorld.y) * 7.0 - uTime * 2.4);
+    float line = edge * mix(0.7 + 0.2 * run, 1.0, uGlow);
     float halo = (1.0 - smoothstep(0.0, 0.35, abs(m - 0.5))) * uGlow * 0.35;
+    float inside = smoothstep(0.5, 0.62, m);
+    // The target zone: a faint wash of the accent inside the outline, so the shape reads at a glance.
+    float ghost = uPattern == 0 ? inside * (0.14 + 0.1 * uGlow) * (1.0 - uFill) : 0.0;
     float fill = smoothstep(0.45, 0.6, m) * uFill;
     float pat = 0.0;
     if (uPattern == 1) pat = step(0.62, fract((vWorld.x + vWorld.y) * 5.0));
     else if (uPattern == 2) pat = 1.0 - step(0.16, length(fract(vWorld.xy * 6.0) - 0.5));
-    pat *= smoothstep(0.5, 0.62, m) * 0.3 * (1.0 - uFill);
+    pat *= inside * 0.3 * (1.0 - uFill);
+    // Reveal shine: a bright diagonal band sweeps across the painted shape once.
+    vec2 size = max(hi - lo, vec2(1e-3));
+    float diag = ((uv.x - lo.x) / size.x + (uv.y - lo.y) / size.y) * 0.5;
+    float shine = exp(-pow((diag - mix(-0.3, 1.3, uShine)) * 7.0, 2.0)) * step(0.001, uShine) * step(uShine, 0.999) * fill;
     vec3 col = uColor * (1.0 + uGlow * 0.6);
-    float a = max(max(max(line, halo), fill * 0.92), pat) * uOpacity;
-    gl_FragColor = vec4(mix(col, uColor * 0.85, fill), a);
+    float a = max(max(max(max(line, halo), fill * 0.92), pat), ghost) * uOpacity;
+    gl_FragColor = vec4(mix(col, uColor * 0.85, fill) + vec3(1.0, 0.95, 0.85) * shine * 0.7, a);
     #include <colorspace_fragment>
   }
 `;
@@ -241,6 +270,9 @@ export class ShadowScene {
   private floorMat: THREE.MeshStandardMaterial;
   private hemi: THREE.HemisphereLight;
   private particles: Particles;
+  private ripple: Ripple;
+  private decor = new Map<DecorKind, THREE.Group>();
+  private floorMaps = new Map<FloorPattern, THREE.DataTexture>();
 
   constructor(palette: WorldPalette, shadowMapSize: number) {
     this.palette = palette;
@@ -255,12 +287,15 @@ export class ShadowScene {
       normalMap: this.wallMap(palette.wallPattern),
       normalScale: new THREE.Vector2(0.55, 0.55),
     });
+    // Lamplight pools around the shadow: the wall and floor darken towards the edges of the room.
+    poolify(this.wallMat, new THREE.Vector3(0.6, 0.85, 0));
     const wall = new THREE.Mesh(new THREE.PlaneGeometry(30, 16), this.wallMat);
     wall.position.set(0, 3, WALL_Z);
     wall.receiveShadow = true;
     s.add(wall);
 
-    this.floorMat = new THREE.MeshStandardMaterial({ color: palette.floor, roughness: 0.9 });
+    this.floorMat = new THREE.MeshStandardMaterial({ color: palette.floor, roughness: 0.85, map: this.floorMap(palette.floorPattern) });
+    poolify(this.floorMat, new THREE.Vector3(0.55, 0, 0.42));
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 20), this.floorMat);
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(0, -2.6, WALL_Z + 10);
@@ -308,6 +343,8 @@ export class ShadowScene {
           uAnimAmp: { value: 0 },
           uBox: { value: new THREE.Vector4(0, 0, 1, 1) },
           uPattern: { value: 0 },
+          uShine: { value: 0 },
+          uPop: { value: 0 },
         },
       }),
     );
@@ -319,7 +356,31 @@ export class ShadowScene {
     s.add(this.outline, outline2);
 
     this.particles = new Particles(palette.accent);
-    s.add(this.particles.points);
+    this.ripple = new Ripple(palette.accent);
+    s.add(this.particles.points, this.ripple.group);
+    this.showDecor(palette.decor);
+  }
+
+  /** Props for the world at the room's edges (built once per world, then kept). */
+  private showDecor(kind: DecorKind) {
+    for (const [k, g] of this.decor) g.visible = k === kind;
+    if (!this.decor.has(kind)) {
+      const g = buildDecor(kind);
+      this.decor.set(kind, g);
+      this.scene.add(g);
+    }
+  }
+
+  private floorMap(pattern: FloorPattern): THREE.DataTexture {
+    let t = this.floorMaps.get(pattern);
+    if (!t) {
+      t = floorMap(pattern);
+      // Boards 0.4 units wide (8 per texture) running towards the camera; checker tiles 0.5 units.
+      if (pattern === 'checker') t.repeat.set(30 / 4, 20 / 4);
+      else t.repeat.set(30 / 3.2, 20 / 4);
+      this.floorMaps.set(pattern, t);
+    }
+    return t;
   }
 
   private wallMap(pattern: WorldPalette['wallPattern']): THREE.DataTexture {
@@ -354,10 +415,14 @@ export class ShadowScene {
     this.wallMat.normalMap = this.wallMap(p.wallPattern);
     this.wallMat.needsUpdate = true;
     this.floorMat.color.set(p.floor);
+    this.floorMat.map = this.floorMap(p.floorPattern);
+    this.floorMat.needsUpdate = true;
     this.skirtingMat.color.set(p.skirting);
     this.light.color.set(p.light);
     for (const o of this.outlines) (o.material.uniforms.uColor.value as THREE.Color).set(p.accent);
     this.particles.setColor(p.accent);
+    this.ripple.setColor(p.accent);
+    this.showDecor(p.decor);
     if (this.dualOn) this.setDual(null);
   }
 
@@ -518,6 +583,9 @@ export class ShadowScene {
     const old = outline.material.uniforms.uMask.value as THREE.Texture | null;
     if (old && old !== maskTexture) old.dispose();
     outline.material.uniforms.uMask.value = maskTexture;
+    // The lamplight pools where the solved shadow lands (between the two on dual-shadow levels, and wider).
+    pool.uPoolCenter.value.copy(this.shadowCenter());
+    pool.uPool.value.set(this.dualOn ? 3 : 1.6, this.dualOn ? 7.5 : 5.5, 0.38);
   }
 
   /** Centre of each solved shadow on the wall (two on dual-shadow levels). */
@@ -542,6 +610,14 @@ export class ShadowScene {
   }
   set outlineOpacity(v: number) {
     this.uniform('uOpacity', v);
+  }
+  /** Reveal: 0 → 1 sweeps a highlight across the painted shape. */
+  set shine(v: number) {
+    this.uniform('uShine', v);
+  }
+  /** Reveal: the painted shape swells by this share (0 = still). */
+  set pop(v: number) {
+    this.uniform('uPop', v);
   }
 
   /**
@@ -577,6 +653,7 @@ export class ShadowScene {
   }
 
   burst() {
+    for (const c of this.shadowCenters()) this.ripple.burst(c);
     this.particles.burst(this.shadowCenter());
   }
 
@@ -587,6 +664,7 @@ export class ShadowScene {
       if (u.uAnimAmp.value > 0) u.uAnimT.value += dt;
     }
     this.particles.update(dt);
+    this.ripple.update(dt);
     this.updateGhosts(dt);
   }
 }
@@ -754,12 +832,72 @@ function pegboardNormalMap(size: number, holes: number): THREE.DataTexture {
   return tex;
 }
 
-/** Reveal confetti: 36 small quads thrown off the wall, falling with gravity, fading out. */
+/** A soft round dot for the confetti (generated, no download). */
+function dotTexture(): THREE.DataTexture {
+  const n = 32;
+  const data = new Uint8Array(n * n * 4);
+  for (let y = 0; y < n; y++)
+    for (let x = 0; x < n; x++) {
+      const d = Math.hypot(x + 0.5 - n / 2, y + 0.5 - n / 2) / (n / 2);
+      const i = (y * n + x) * 4;
+      data[i] = data[i + 1] = data[i + 2] = 255;
+      data[i + 3] = Math.max(0, Math.min(1, (1 - d) * 3)) * 255;
+    }
+  const t = new THREE.DataTexture(data, n, n, THREE.RGBAFormat);
+  t.magFilter = THREE.LinearFilter;
+  t.needsUpdate = true;
+  return t;
+}
+
+/** Reveal: a bright ring that spreads out from each solved shadow and fades. */
+class Ripple {
+  readonly group = new THREE.Group();
+  private rings: { mesh: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>; t: number }[] = [];
+  private next = 0;
+
+  constructor(color: string) {
+    const geo = new THREE.RingGeometry(0.95, 1, 72);
+    for (let i = 0; i < 2; i++) {
+      const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, depthWrite: false }));
+      mesh.renderOrder = 3;
+      mesh.visible = false;
+      this.rings.push({ mesh, t: -1 });
+      this.group.add(mesh);
+    }
+  }
+
+  setColor(color: string) {
+    for (const r of this.rings) r.mesh.material.color.set(color);
+  }
+
+  burst(at: THREE.Vector3) {
+    const r = this.rings[this.next++ % this.rings.length];
+    r.mesh.position.copy(at).setZ(WALL_Z + 0.01);
+    r.t = 0;
+    r.mesh.visible = true;
+  }
+
+  update(dt: number) {
+    for (const r of this.rings) {
+      if (r.t < 0) continue;
+      r.t += dt;
+      const k = Math.min(1, r.t / 0.9);
+      r.mesh.scale.setScalar(0.8 + 1.8 * (1 - (1 - k) * (1 - k)));
+      r.mesh.material.opacity = 0.6 * (1 - k);
+      if (k >= 1) {
+        r.t = -1;
+        r.mesh.visible = false;
+      }
+    }
+  }
+}
+
+/** Reveal confetti: round dots in the world's accent thrown off the wall, falling with gravity, fading out. */
 class Particles {
   readonly points: THREE.Points;
   private vel: Float32Array;
   private life = 0;
-  private readonly count = 36;
+  private readonly count = 90;
 
   constructor(color: string) {
     const geo = new THREE.BufferGeometry();
@@ -769,7 +907,7 @@ class Particles {
     this.vel = new Float32Array(this.count * 3);
     this.points = new THREE.Points(
       geo,
-      new THREE.PointsMaterial({ size: 0.09, vertexColors: true, transparent: true, opacity: 0, depthWrite: false }),
+      new THREE.PointsMaterial({ size: 0.16, map: dotTexture(), vertexColors: true, transparent: true, opacity: 0, depthWrite: false }),
     );
     this.points.frustumCulled = false;
     this.points.visible = false;
@@ -781,7 +919,9 @@ class Particles {
     const base = new THREE.Color(color);
     const c = new THREE.Color();
     for (let i = 0; i < this.count; i++) {
-      c.copy(base).offsetHSL((Math.random() - 0.5) * 0.15, 0, (Math.random() - 0.3) * 0.3);
+      // Mostly the accent, with a few white sparkles.
+      if (Math.random() < 0.2) c.set('#fff6e0');
+      else c.copy(base).offsetHSL((Math.random() - 0.5) * 0.15, 0, (Math.random() - 0.3) * 0.3);
       cols.setXYZ(i, c.r, c.g, c.b);
     }
     cols.needsUpdate = true;
@@ -792,11 +932,11 @@ class Particles {
     for (let i = 0; i < this.count; i++) {
       pos.setXYZ(i, at.x + (Math.random() - 0.5) * 1.2, at.y + (Math.random() - 0.5) * 1.2, at.z + 0.1);
       const a = Math.random() * Math.PI * 2;
-      const sp = 1.2 + Math.random() * 2.2;
+      const sp = 1.4 + Math.random() * 3;
       this.vel.set([Math.cos(a) * sp, Math.sin(a) * sp + 1.5, 0.6 + Math.random() * 1.5], i * 3);
     }
     pos.needsUpdate = true;
-    this.life = 1.4;
+    this.life = 1.8;
     this.points.visible = true;
   }
 
