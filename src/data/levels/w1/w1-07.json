@@ -6,8 +6,8 @@
     "kind": "model",
     "url": "models/w1/bird_junk.glb"
   },
-  "freeAxes": ["x", "y", "z"],
-  "startOffset": [95, 70, 50],
+  "freeAxes": ["x", "y"],
+  "startOffset": [95, 70, 0],
   "threshold": 0.9,
   "parTime": 40,
   "allowMirror": false,

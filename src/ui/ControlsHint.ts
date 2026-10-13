@@ -16,16 +16,31 @@ const STORAGE_KEY = 'casted.controls';
 /** A mouse is the main pointer (PC). Touch devices get the wordless hand instead. */
 export const isDesktop = () => matchMedia('(hover: hover) and (pointer: fine)').matches;
 
+/**
+ * Keys are read by physical position (KeyboardEvent.code), so WASD sits under the left hand on any layout (ZQSD on
+ * AZERTY). Labels follow the player's layout where the browser tells us (Keyboard Map API, Chromium); else QWERTY.
+ */
+let layout: Map<string, string> | null = null;
+export async function loadKeyboardLayout() {
+  try {
+    const kb = (navigator as Navigator & { keyboard?: { getLayoutMap(): Promise<Map<string, string>> } }).keyboard;
+    if (kb?.getLayoutMap) layout = await kb.getLayoutMap();
+  } catch {}
+}
+/** The label printed on the key at physical position `code` (e.g. 'KeyW' → 'Z' on AZERTY). */
+export const keyLabel = (code: string) => (layout?.get(code) ?? code.replace(/^Key/, '')).toUpperCase();
+
 const key = (k: string) => `<kbd>${k}</kbd>`;
+const keys = (...codes: string[]) => codes.map((c) => key(keyLabel(c))).join('');
 const MOUSE = '<span class="kbd-mouse">Drag</span>';
 
 /** One row per control: the keys, then what it does. Shared with the pause menu's Controls page. */
 export function controlRow(c: Control, lightOnly = false): string {
   switch (c) {
     case 'turn':
-      return `<span class="keys">${MOUSE} <i>or</i> ${key('W')}${key('A')}${key('S')}${key('D')}</span><span>Turn</span>`;
+      return `<span class="keys">${MOUSE} <i>or</i> ${keys('KeyW', 'KeyA', 'KeyS', 'KeyD')}</span><span>Turn</span>`;
     case 'twist':
-      return `<span class="keys">${key('Shift')} + ${MOUSE} <i>or</i> ${key('Q')}${key('E')}</span><span>Twist</span>`;
+      return `<span class="keys">${key('Shift')} + ${MOUSE} <i>or</i> ${keys('KeyQ', 'KeyE')}</span><span>Twist</span>`;
     case 'lamp':
       return `<span class="keys">${lightOnly ? `${MOUSE} <i>or</i> ` : ''}${key('←')}${key('↑')}${key('↓')}${key('→')}</span><span>Move the lamp</span>`;
     case 'switch':
@@ -50,6 +65,7 @@ export class ControlsHint {
   constructor(parent: HTMLElement) {
     this.learned = ControlsHint.load();
     parent.append(this.root);
+    void loadKeyboardLayout();
   }
 
   private static load(): Partial<Record<Control, boolean>> {
@@ -79,6 +95,11 @@ export class ControlsHint {
       this.rows.set(c, row);
       this.root.append(row);
     }
+  }
+
+  /** Touch screens have no strip: the first level that lets the player twist says how, once, until they have. */
+  touchTip(ctx: ControlsContext): string | null {
+    return !this.desktop && ctx.twist && !this.learned.twist ? 'Twist with two fingers' : null;
   }
 
   /** The player used a control: tick its row, remember it, and leave once every row is ticked. */

@@ -48,7 +48,8 @@ export class PostFX {
       if (spec.vignette) effects.push(new VignetteEffect({ offset: 0.32, darkness: 0.55 }));
       if (spec.grain) {
         const noise = new NoiseEffect({ blendFunction: BlendFunction.OVERLAY, premultiply: false });
-        noise.blendMode.opacity.value = 0.18;
+        // A hint of film grain only: more speckles the shadow, which is what the player reads.
+        noise.blendMode.opacity.value = 0.05;
         effects.push(noise);
       }
       this.effectPass = new EffectPass(this.camera, ...effects);
