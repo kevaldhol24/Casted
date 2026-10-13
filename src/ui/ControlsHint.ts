@@ -97,9 +97,15 @@ export class ControlsHint {
     }
   }
 
-  /** Touch screens have no strip: the first level that lets the player twist says how, once, until they have. */
-  touchTip(ctx: ControlsContext): string | null {
-    return !this.desktop && ctx.twist && !this.learned.twist ? 'Twist with two fingers' : null;
+  /**
+   * Twist arrives as a new move: levels before it turn like a turntable (no roll). Until the player has twisted
+   * once, a level that allows it announces it, with how to do it on this device.
+   */
+  newMoveTip(ctx: ControlsContext): string | null {
+    if (!ctx.twist || this.learned.twist) return null;
+    return this.desktop
+      ? `New move: Twist! Shift + drag, or ${keyLabel('KeyQ')} / ${keyLabel('KeyE')}`
+      : 'New move: Twist! Turn with two fingers';
   }
 
   /** The player used a control: tick its row, remember it, and leave once every row is ticked. */

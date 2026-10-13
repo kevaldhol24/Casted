@@ -171,8 +171,8 @@ export class Game {
     this.level.onStart = () => {
       const ctx = this.level.controls;
       this.controls.setLevel(ctx);
-      const tip = this.controls.touchTip(ctx);
-      if (tip && !this.level.isSuspended) this.hud.toast(tip, 3.2);
+      const tip = this.controls.newMoveTip(ctx);
+      if (tip && !this.level.isSuspended) this.hud.toast(tip, 4);
     };
     this.applySettings(store.data.settings);
     // CrazyGames' muteAudio setting wins over the in-game sound toggle.
@@ -581,6 +581,7 @@ export class Game {
       freeHint: !this.store.data.freeHintUsed,
       adReady: this.portal.rewardedAvailable() && performance.now() >= this.rewardedReadyAt,
       adCooldown: Math.max(0, this.rewardedReadyAt - performance.now()) / 1000,
+      straighten: this.level.canStraighten,
     });
     this.analytics.track({ type: 'hint-panel', action: 'open' });
     for (const placement of offers) this.analytics.track({ type: 'offer', placement, action: 'visible' });

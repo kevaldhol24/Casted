@@ -6,11 +6,21 @@ const DAMPING_PER_60HZ_FRAME = 0.92;
 const KEY_SPEED_DEG = 110;
 const DEG = Math.PI / 180;
 
+/** Turntable pose: degrees of tilt (about the frame's right axis) and turn (about the tilted up axis) from `base`. */
+export interface TurntablePose {
+  pitch: number;
+  yaw: number;
+}
+
 /**
  * Screen-space rotation: dragging right always turns the object right as seen, never around its local axes.
  * The axes come from `frame` — the light's view (mask camera), which faces the wall like the player's camera but
  * is aligned with the shadow, so a yaw-only level squeezes the shadow sideways without skewing it.
  * Locked axes are dropped from the intent. Releasing keeps spinning with damping until a new grab.
+ *
+ * Free rotation lets turns build up roll (right, down, left, up leaves the object twisted: rotations don't
+ * commute). Objects with roll locked use a turntable instead: the pose is tilt × turn × base, set only by how far
+ * each has gone, so no order of drags ever twists the object.
  */
 export class Arcball {
   enabled = true;
@@ -22,7 +32,10 @@ export class Arcball {
   /** True when the rotation changed this frame (consumed by the scorer). */
   changed = false;
   private q = new THREE.Quaternion();
+  private q2 = new THREE.Quaternion();
   private axis = new THREE.Vector3();
+  /** Turntable objects: their unrotated pose and how far they are tilted and turned from it. */
+  private turntables = new WeakMap<THREE.Object3D, { base: THREE.Quaternion } & TurntablePose>();
 
   /** @param target what rotates (assembly levels switch it to the active piece) */
   constructor(public target: THREE.Object3D, private frame: THREE.Object3D) {}
@@ -89,9 +102,56 @@ export class Arcball {
     this.frameIntent = { yaw: 0, pitch: 0, roll: 0 };
   }
 
+  /**
+   * Make `obj` a turntable around `base` (its solved pose), starting at `pose`; null makes it free again.
+   * The level calls this for pieces with roll locked.
+   */
+  setTurntable(obj: THREE.Object3D, base: THREE.Quaternion | null, pose: TurntablePose = { pitch: 0, yaw: 0 }) {
+    if (!base) {
+      this.turntables.delete(obj);
+      return;
+    }
+    this.turntables.set(obj, { base: base.clone(), ...pose });
+    this.compose(obj);
+  }
+
+  /** A turntable object's tilt and turn (null if it rotates freely). */
+  pose(obj: THREE.Object3D): TurntablePose | null {
+    const t = this.turntables.get(obj);
+    return t ? { pitch: t.pitch, yaw: t.yaw } : null;
+  }
+
+  /** Put a turntable object at a tilt and turn (hints and the snap move it this way, so it never picks up roll). */
+  setPose(obj: THREE.Object3D, pose: TurntablePose) {
+    const t = this.turntables.get(obj);
+    if (!t) return;
+    t.pitch = pose.pitch;
+    t.yaw = pose.yaw;
+    this.compose(obj);
+  }
+
+  private compose(obj: THREE.Object3D) {
+    const t = this.turntables.get(obj)!;
+    const m = this.frame.matrixWorld;
+    this.q.setFromAxisAngle(this.axis.setFromMatrixColumn(m, 0).normalize(), t.pitch * DEG);
+    this.q2.setFromAxisAngle(this.axis.setFromMatrixColumn(m, 1).normalize(), t.yaw * DEG);
+    obj.quaternion.copy(this.q).multiply(this.q2).multiply(t.base);
+  }
+
   /** Rotate by screen-space degrees around the frame's up (yaw), right (pitch) and forward (roll) axes. */
   apply(yaw: number, pitch: number, roll: number) {
     const free = this.freeAxes;
+    const t = this.turntables.get(this.target);
+    if (t) {
+      const dp = free.includes('x') ? pitch : 0;
+      const dy = free.includes('y') ? yaw : 0;
+      if (dp === 0 && dy === 0) return;
+      t.pitch += dp;
+      t.yaw += dy;
+      this.compose(this.target);
+      this.changed = true;
+      return;
+    }
     const m = this.frame.matrixWorld;
     const steps: [Axis, number, number][] = [
       ['y', yaw, 1],

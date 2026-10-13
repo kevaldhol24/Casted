@@ -103,6 +103,10 @@ solution), and drag with `page.mouse` to verify input (the lamp pad is `.light-p
 ## Conventions
 
 - No frameworks for UI: vanilla TS + CSS over the canvas.
+- Rotation: pieces with roll locked (no `z` in `freeAxes`) are turntables (`Arcball.setTurntable`): pose = tilt ×
+  turn × solution, so no order of drags twists them (free rotation lets X/Y drags build up roll). The snap and hints
+  move them along tilt/turn (`LevelController.moveToward`), never by slerp. Twist arrives as a "New move" toast;
+  the Straighten hint (1 Bulb, offered only when a rollable piece is ≥ 2° off) removes just the roll.
 - Keys: read by physical position (`KeyboardEvent.code`); on-screen labels go through `keyLabel()` (`ControlsHint.ts`,
   follows the player's layout, e.g. ZQSD on AZERTY). Never bind Escape (it leaves fullscreen; CrazyGames restricted
   keys): P pauses.

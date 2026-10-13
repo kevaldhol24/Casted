@@ -37,7 +37,7 @@ const MODES = ['campaign', 'daily', 'endless'] as const;
 const PLACEMENTS = ['hint-reveal', 'bulbs', 'daily-retry', 'daily-double', 'endless-continue', 'midgame'] as const;
 const AD_RESULTS = ['rewarded', 'no-fill', 'error', 'played'] as const;
 const WIN_ACTIONS = ['next', 'replay', 'menu', 'auto-advance'] as const;
-const TIERS = ['nudge', 'peek', 'reveal'] as const;
+const TIERS = ['nudge', 'straighten', 'peek', 'reveal'] as const;
 
 function session(r: Obj, now: number): Row {
   need(str(r.sessionId) && UUID.test(r.sessionId), 'sessionId');
