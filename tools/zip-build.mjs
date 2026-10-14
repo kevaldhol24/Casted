@@ -41,7 +41,14 @@ if (problems.length) {
   process.exit(1);
 }
 
-const entries = Object.fromEntries(files.map((f) => [relative(dir, f).split('\\').join('/'), readFileSync(f)]));
+const names = files.map((f) => relative(dir, f).split('\\').join('/'));
+// Explicit folder entries ("assets/", "models/w1/"), as zip tools write them: without them CrazyGames' unpacker
+// dropped every folder and served all files from the root, so assets/… and models/… were 404 (stuck loading).
+const folders = new Set(names.flatMap((n) => n.split('/').slice(0, -1).map((_, i, parts) => parts.slice(0, i + 1).join('/') + '/')));
+const entries = {
+  ...Object.fromEntries([...folders].sort().map((d) => [d, new Uint8Array(0)])),
+  ...Object.fromEntries(names.map((n, i) => [n, readFileSync(files[i])])),
+};
 const zip = zipSync(entries, { level: 9 });
 const out = join(root, 'release', `casted-${name}-${version}.zip`);
 mkdirSync(dirname(out), { recursive: true });
