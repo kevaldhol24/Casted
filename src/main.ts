@@ -41,6 +41,8 @@ async function boot() {
   const game = new Game(canvas, ui, portal, store, analytics);
   game.start();
   if (import.meta.env.DEV) (window as unknown as { __casted: Game }).__casted = game;
+  // The Android app (Capacitor, `--mode android`) routes its back button here; see tools/android/MainActivity.java.
+  if (import.meta.env.MODE === 'android') (window as unknown as { __castedBack: () => boolean }).__castedBack = () => game.back();
   portal.loadingFinished();
   analytics.track({ type: 'loaded' });
   // Let the bar finish, then fade the loading screen out over the first frame.

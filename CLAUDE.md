@@ -1,7 +1,7 @@
 # Casted — shadow puzzle game
 
 3D browser puzzle game: rotate junk-looking objects under a light until the shadow matches a target silhouette. Three.js + TypeScript + Vite, targeting CrazyGames
-(Poki was dropped in October 2026: the submission stalled).
+(Poki was dropped in October 2026: the submission stalled) and Google Play (Capacitor wrapper, built in CI).
 
 ## Start every session here
 
@@ -44,6 +44,15 @@ Never add Claude/AI attribution (no `Co-Authored-By`, no "Generated with Claude 
   `release/casted-crazygames-<version>.zip` for upload: same game plus the SDK script tag
   (`https://sdk.crazygames.com/crazygames-sdk-v3.js`, its only off-bundle request). `tools/zip-build.mjs` fails the
   build if a path isn't relative or anything loads from another host. Every other build uses `LocalPortal`
+- `npm run build:android` — web build for the Android app (`--mode android` into `dist/`: `LocalPortal`, no ads,
+  `window.__castedBack` for the back button). The app itself is built only in CI: `.github/workflows/android-release.yml`
+  runs on every push to `main` (and by hand): installs Capacitor (`--no-save`, versions pinned in the workflow), `cap add
+  android` from `capacitor.config.json` (app id `com.kevaldhol.casted`), icons from `tools/android/icons.mjs`, then
+  `tools/android/patch.mjs` (our `MainActivity.java`: back → game, full screen; versionCode = run number, versionName =
+  `package.json` version, release signing), and publishes a signed `.apk` + `.aab` as a GitHub Release
+  `v<version>-build<run>`. `android/` is generated, never committed; nothing Android is installed locally.
+  Signing secrets (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`) are
+  set once by `tools/android/setup-signing.ps1` (upload key kept in `%USERPROFILE%\casted-keys`)
 - `npm run models` — rebuild the authored models from `tools/models/` (`kit.mjs` shatter/junk/dual-shadow tools,
   `w1.mjs` … `w4.mjs`) → `public/models/w<N>/*.glb` (Draco) + `public/masks/*.png`; `npm run models -- 4` rebuilds
   only World 4 (any list of worlds); `npm run models -- w1-16 w1-17` rebuilds only those World 1 levels (use it for

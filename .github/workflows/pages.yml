@@ -1,5 +1,7 @@
 name: Deploy to GitHub Pages
 
+# Publishes the built game (dist/) to https://kevaldhol24.github.io/Casted/ on every push to main.
+# Pages must be set to "GitHub Actions" as its source; serving the branch directly ships raw .ts and never boots.
 on:
   push:
     branches: [main]
