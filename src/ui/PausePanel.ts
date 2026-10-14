@@ -21,6 +21,7 @@ export class PausePanel {
   private inputs: Record<string, HTMLInputElement> = {};
   private quality = el('select', 'interactive');
   private back!: () => void;
+  private privacyView?: HTMLElement;
 
   constructor(parent: HTMLElement) {
     const card = el('div', 'card interactive');
@@ -84,6 +85,13 @@ export class PausePanel {
     privacy.href = 'privacy.html';
     privacy.target = '_blank';
     privacy.rel = 'noopener';
+    // The Android app has no tabs: the link would replace the game in the WebView with no way back.
+    if (import.meta.env.MODE === 'android') {
+      privacy.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.openPrivacy();
+      });
+    }
     const back = el('button', 'btn-secondary interactive', 'Back');
     const backRow = el('div', 'btn-row');
     backRow.append(back);
@@ -118,6 +126,28 @@ export class PausePanel {
 
   get open() {
     return this.overlay.classList.contains('show');
+  }
+
+  /** Android only: the privacy policy in a full-screen frame over the game, closed by its Back button or the system back. */
+  private openPrivacy() {
+    if (this.privacyView) return;
+    const view = el('div', 'privacy-view interactive');
+    const close = el('button', 'btn-secondary interactive', 'Back');
+    const frame = el('iframe');
+    frame.src = 'privacy.html';
+    frame.title = 'Privacy policy';
+    close.addEventListener('click', () => this.closePrivacy());
+    view.append(close, frame);
+    this.overlay.after(view);
+    this.privacyView = view;
+  }
+
+  /** Closes the privacy policy if it is open; true when it was. */
+  closePrivacy(): boolean {
+    if (!this.privacyView) return false;
+    this.privacyView.remove();
+    this.privacyView = undefined;
+    return true;
   }
 
   private fire(fn: () => void) {

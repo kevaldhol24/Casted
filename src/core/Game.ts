@@ -817,7 +817,7 @@ export class Game {
    * False on the main menu, where the app goes to the background instead.
    */
   back(): boolean {
-    if (this.inAd || this.card.open) return true;
+    if (this.inAd || this.card.open || this.pause.closePrivacy()) return true;
     if (this.inMenus) return false;
     this.onKey('KeyP');
     return true;
