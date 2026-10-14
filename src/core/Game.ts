@@ -812,6 +812,17 @@ export class Game {
     else if (this.mode === 'endless' && this.run) this.hud.setLevel(`${this.run.score} pts${this.run.mult > 1 ? ` ×${this.run.mult}` : ''}`);
   }
 
+  /**
+   * Android back button (called from the app's MainActivity): closes the open panel or opens the pause menu, like P.
+   * False on the main menu, where the app goes to the background instead.
+   */
+  back(): boolean {
+    if (this.inAd || this.card.open) return true;
+    if (this.inMenus) return false;
+    this.onKey('KeyP');
+    return true;
+  }
+
   private onKey(code: string) {
     if (this.inAd || this.inMenus || this.card.open) return;
     // P, never Escape: Escape leaves fullscreen in the browser (CrazyGames restricted keys).

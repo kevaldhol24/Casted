@@ -1,0 +1,8 @@
+{
+  "appId": "com.kevaldhol.casted",
+  "appName": "Casted",
+  "webDir": "dist",
+  "android": {
+    "backgroundColor": "#2b2019"
+  }
+}

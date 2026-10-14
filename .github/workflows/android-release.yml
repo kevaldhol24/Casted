@@ -1,0 +1,108 @@
+name: Android release
+
+# Every merge to main builds a signed APK + AAB and publishes them as a GitHub Release.
+# The Android project is generated here by Capacitor (never committed); native changes live in tools/android/.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+env:
+  CAPACITOR_VERSION: 8.5.3
+  CAPACITOR_ASSETS_VERSION: 3.0.5
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install
+        run: |
+          npm ci
+          npm install --no-save @capacitor/core@$CAPACITOR_VERSION @capacitor/cli@$CAPACITOR_VERSION \
+            @capacitor/android@$CAPACITOR_VERSION @capacitor/assets@$CAPACITOR_ASSETS_VERSION
+
+      - name: Build the game
+        run: npm run build:android
+
+      - name: Version
+        id: version
+        run: |
+          echo "name=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+          # Play needs a higher versionCode on every upload: the run number only ever goes up.
+          echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Android project
+        run: |
+          npx cap add android
+          node tools/android/icons.mjs build-assets
+          npx capacitor-assets generate --android --assetPath build-assets \
+            --iconBackgroundColor '#2b2019' --iconBackgroundColorDark '#2b2019' \
+            --splashBackgroundColor '#2b2019' --splashBackgroundColorDark '#2b2019'
+          node tools/android/patch.mjs
+          npx cap sync android
+          chmod +x android/gradlew
+
+      - name: Upload keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then echo "::error::Secret ANDROID_KEYSTORE_BASE64 is not set"; exit 1; fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+
+      - name: Build APK + AAB
+        working-directory: android
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/upload.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon assembleRelease bundleRelease
+
+      - name: Collect
+        id: out
+        run: |
+          base="casted-${{ steps.version.outputs.name }}-${{ steps.version.outputs.code }}"
+          mkdir out
+          cp android/app/build/outputs/apk/release/app-release.apk "out/$base.apk"
+          cp android/app/build/outputs/bundle/release/app-release.aab "out/$base.aab"
+          echo "tag=v${{ steps.version.outputs.name }}-build${{ steps.version.outputs.code }}" >> "$GITHUB_OUTPUT"
+          ls -l out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: casted-android-${{ steps.version.outputs.code }}
+          path: out/
+
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.out.outputs.tag }}" out/* \
+            --target "$GITHUB_SHA" \
+            --title "Casted ${{ steps.version.outputs.name }} (build ${{ steps.version.outputs.code }})" \
+            --notes "Android build of ${GITHUB_SHA::7}. versionName ${{ steps.version.outputs.name }}, versionCode ${{ steps.version.outputs.code }}.
+          - **.aab**: upload to Google Play Console.
+          - **.apk**: install directly on a phone for testing."

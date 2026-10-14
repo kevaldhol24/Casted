@@ -106,7 +106,7 @@ const VERSION = (JSON.parse(readFileSync(new URL('./package.json', import.meta.u
 
 export default defineConfig(({ mode }) => ({
   base: './',
-  define: { __CASTED_BUILD__: JSON.stringify(`${VERSION}-${mode === 'crazygames' ? 'crazygames' : 'web'}`) },
+  define: { __CASTED_BUILD__: JSON.stringify(`${VERSION}-${mode === 'crazygames' || mode === 'android' ? mode : 'web'}`) },
   plugins: [levelEditor(), dracoDefaultsOff(), ...(mode === 'crazygames' ? [crazyGamesSdk()] : [])],
   build: { target: 'es2020', assetsInlineLimit: 0, chunkSizeWarningLimit: 900 },
   server: { host: true },

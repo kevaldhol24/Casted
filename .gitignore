@@ -5,4 +5,8 @@ dist-crazygames
 .wrangler
 .dev.vars
 release
+/android
+/build-assets
+*.jks
+*.keystore
 marketing
