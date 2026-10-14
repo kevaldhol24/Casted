@@ -53,4 +53,21 @@ async function boot() {
   }
 }
 
-boot();
+/**
+ * A boot that throws (most often WebGL unavailable: blocked GPU, old driver, a VM without a GPU) used to leave the
+ * loading screen up for good. Say what happened instead and offer a reload.
+ */
+function bootFailed(e: unknown) {
+  console.error('[casted] boot failed', e);
+  const webgl = /webgl/i.test(String(e));
+  const boot = document.getElementById('boot');
+  if (!boot) return;
+  boot.innerHTML =
+    `<div class="name">CASTED</div>` +
+    `<p style="max-width:300px;margin:0;text-align:center;line-height:1.4;opacity:.85">${
+      webgl ? 'Your browser could not start 3D graphics (WebGL). Try enabling hardware acceleration or another browser.' : 'Something went wrong while loading.'
+    }</p>` +
+    `<button onclick="location.reload()" style="font:inherit;font-weight:800;padding:12px 28px;border:0;border-radius:99px;background:#f2a43a;color:#2b2019;cursor:pointer">Reload</button>`;
+}
+
+boot().catch(bootFailed);
