@@ -581,6 +581,7 @@ export class Game {
       freeHint: !this.store.data.freeHintUsed,
       adReady: this.portal.rewardedAvailable() && performance.now() >= this.rewardedReadyAt,
       adCooldown: Math.max(0, this.rewardedReadyAt - performance.now()) / 1000,
+      videos: this.portal.videoAds,
       straighten: this.level.canStraighten,
     });
     this.analytics.track({ type: 'hint-panel', action: 'open' });
@@ -671,6 +672,7 @@ export class Game {
     const streak = this.store.dailyStreak(this.today);
     const bulbs = earned > 0 ? ` · +${earned} <span class="bulb-inline">${ICONS.bulb}</span>` : '';
     const shields = this.store.data.daily.shields;
+    const videos = this.portal.videoAds;
     const adReady = this.portal.rewardedAvailable() && performance.now() >= this.rewardedReadyAt;
     this.card.show({
       title: `Daily #${dailyNumber(this.today)} · ${dailyLevel(this.today).targetName}`,
@@ -681,15 +683,15 @@ export class Game {
       ],
       buttons: [
         { label: 'Share', primary: true, onClick: () => this.shareDaily() },
-        ...(res.stars < 3 && !res.retried
+        ...(videos && res.stars < 3 && !res.retried
           ? [{ label: 'Try for 3 stars', video: true, disabled: !adReady, onClick: () => this.retryDaily() }]
           : []),
-        ...(!res.doubled ? [{ label: `+${BULBS.dailySolve} Bulbs`, video: true, disabled: !adReady, onClick: () => this.doubleDaily() }] : []),
+        ...(videos && !res.doubled ? [{ label: `+${BULBS.dailySolve} Bulbs`, video: true, disabled: !adReady, onClick: () => this.doubleDaily() }] : []),
         { label: 'Menu', onClick: () => this.showMenu() },
       ],
     });
-    if (adReady && res.stars < 3 && !res.retried) this.analytics.track({ type: 'offer', placement: 'daily-retry', action: 'visible' });
-    if (adReady && !res.doubled) this.analytics.track({ type: 'offer', placement: 'daily-double', action: 'visible' });
+    if (videos && adReady && res.stars < 3 && !res.retried) this.analytics.track({ type: 'offer', placement: 'daily-retry', action: 'visible' });
+    if (videos && adReady && !res.doubled) this.analytics.track({ type: 'offer', placement: 'daily-double', action: 'visible' });
   }
 
   private async shareDaily() {
@@ -770,6 +772,7 @@ export class Game {
 
   private showEndlessOver() {
     const run = this.run!;
+    const videos = this.portal.videoAds;
     const adReady = this.portal.rewardedAvailable() && performance.now() >= this.rewardedReadyAt;
     this.card.show({
       title: "Time's up",
@@ -779,11 +782,11 @@ export class Game {
       ],
       buttons: [
         { label: 'Play again', primary: true, onClick: () => this.endlessAgain() },
-        ...(!run.continued ? [{ label: `+${ENDLESS_CONTINUE_S}s`, video: true, disabled: !adReady, onClick: () => this.endlessContinue() }] : []),
+        ...(videos && !run.continued ? [{ label: `+${ENDLESS_CONTINUE_S}s`, video: true, disabled: !adReady, onClick: () => this.endlessContinue() }] : []),
         { label: 'Menu', onClick: () => this.showMenu() },
       ],
     });
-    if (adReady && !run.continued) this.analytics.track({ type: 'offer', placement: 'endless-continue', action: 'visible' });
+    if (videos && adReady && !run.continued) this.analytics.track({ type: 'offer', placement: 'endless-continue', action: 'visible' });
   }
 
   /** Rewarded continue, once per run, offered only on the game-over card. */

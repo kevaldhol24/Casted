@@ -7,6 +7,8 @@ export interface HintPanelState {
   /** Rewarded ads usable right now (no adblock, not cooling down). */
   adReady: boolean;
   adCooldown: number;
+  /** The build has video ads; false hides the video offers. */
+  videos: boolean;
   /** A piece that can roll is visibly rolled off its solution: offer Straighten. */
   straighten: boolean;
 }
@@ -60,7 +62,7 @@ export class HintPanel {
     const offers: ('hint-reveal' | 'bulbs')[] = [];
     this.list.innerHTML = '';
     this.balance.innerHTML = `<span class="bulb-inline">${ICONS.bulb}</span> ${s.bulbs} Bulbs`;
-    this.note.textContent = s.adReady ? '' : 'No video available right now — try again soon.';
+    this.note.textContent = s.adReady || !s.videos ? '' : 'No video available right now — try again soon.';
     for (const t of TIERS) {
       if (t.tier === 'straighten' && !s.straighten) continue;
       const cost = HINT_COST[t.tier];
@@ -76,7 +78,7 @@ export class HintPanel {
         this.onPick(t.tier, false);
       });
       row.append(b);
-      if (t.tier === 'reveal' && !free) {
+      if (t.tier === 'reveal' && !free && s.videos) {
         const v = el('button', 'hint-video interactive', `${ICONS.video}<span>Watch</span>`);
         v.disabled = !s.adReady;
         v.setAttribute('aria-label', 'Reveal for a video');
@@ -89,7 +91,7 @@ export class HintPanel {
       }
       this.list.append(row);
     }
-    if (!s.freeHint && s.bulbs < HINT_COST.reveal) {
+    if (!s.freeHint && s.bulbs < HINT_COST.reveal && s.videos) {
       const more = el('button', 'btn-primary interactive get-bulbs', `${ICONS.video} +2 Bulbs`);
       more.disabled = !s.adReady;
       if (s.adReady) offers.push('bulbs');

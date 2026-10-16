@@ -2,6 +2,7 @@ import { localSaveStorage, type Portal } from './Portal';
 
 /** Dev / own-site build: no ads, localStorage saves. Logs SDK events in dev to check coverage. */
 export class LocalPortal implements Portal {
+  readonly videoAds = import.meta.env.MODE !== 'android';
   private playing = false;
   private log(...args: unknown[]) {
     if (import.meta.env.DEV) console.debug('[portal]', ...args);
