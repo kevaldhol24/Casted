@@ -11,6 +11,7 @@ import { localSaveStorage, type AdCallbacks, type Portal, type SaveStorage } fro
  * replayed in order.
  */
 export class CrazyGamesPortal implements Portal {
+  readonly videoAds = true;
   private playing = false;
   /** init() has settled. */
   private ready = false;
