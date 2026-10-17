@@ -11,8 +11,12 @@ import { localSaveStorage, type AdCallbacks, type Portal, type SaveStorage } fro
  * replayed in order.
  */
 export class CrazyGamesPortal implements Portal {
-  readonly videoAds = true;
   private playing = false;
+  /**
+   * CrazyGames turns ads off while a game is in basic launch (its first public stage): every request fails with
+   * `adsDisabledBasicLaunch`. Then the build has no videos at all, so the video offers are hidden, as in the app.
+   */
+  private adsDisabled = false;
   /** init() has settled. */
   private ready = false;
   /** The SDK initialised in a usable environment. */
@@ -50,6 +54,11 @@ export class CrazyGamesPortal implements Portal {
         await sdk.init();
         this.live = sdk.environment !== 'disabled';
         if (!this.live) this.warn('environment is "disabled" (not a CrazyGames host): running without the SDK');
+        // Not public API: the init reply names the launch stage. If it moves, the first ad error still turns ads off.
+        try {
+          const reply = (sdk as unknown as { sdk?: { initializeReply?: { launchFlow?: string } } }).sdk?.initializeReply;
+          if (reply?.launchFlow === 'basic') this.adsDisabled = true;
+        } catch {}
       }
     } catch (e) {
       this.warn(`init failed: ${e}`);
@@ -82,7 +91,7 @@ export class CrazyGamesPortal implements Portal {
   /** One ad request: resolves true when the ad finished, false on any error (unfilled, adblock, cooldown…). */
   private requestAd(type: 'midgame' | 'rewarded', cb?: AdCallbacks): Promise<boolean> {
     const sdk = this.sdk;
-    if (!sdk) return Promise.resolve(false);
+    if (!sdk || this.adsDisabled) return Promise.resolve(false);
     if (this.playing) this.gameplayStop();
     return new Promise((resolve) => {
       try {
@@ -91,6 +100,7 @@ export class CrazyGamesPortal implements Portal {
           adFinished: () => resolve(true),
           adError: (e) => {
             if (e?.code === 'adblock') this.adblock = true;
+            if (e?.code === 'adsDisabledBasicLaunch') this.adsDisabled = true;
             if (import.meta.env.DEV) console.info(`[crazygames] ${type} ad: ${e?.code}`);
             resolve(false);
           },
@@ -110,9 +120,13 @@ export class CrazyGamesPortal implements Portal {
     return this.requestAd('rewarded', cb);
   }
 
+  get videoAds() {
+    return !this.adsDisabled;
+  }
+
   /** Off without the SDK or with an adblocker; otherwise a break that can't fill resolves false and the game says so. */
   rewardedAvailable() {
-    return !!this.sdk && !this.adblock;
+    return !!this.sdk && !this.adblock && !this.adsDisabled;
   }
 
   happyTime() {
