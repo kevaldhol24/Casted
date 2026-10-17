@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 
 interface SaveRequest {
@@ -85,6 +85,40 @@ function crazyGamesSdk(): Plugin {
 }
 
 /**
+ * CrazyGames build only: every file at the build root. Their uploader dropped every folder and served all files from
+ * the root, so assets/, models/ and masks/ were 404 and the game hung on its loading screen. Bundled assets go to the
+ * root via `assetsDir: ''`; this moves the public/ folders' files up and points index.html's preload at the root.
+ * The game resolves "models/w1/x.glb" to "x.glb" in this build (src/util/assetUrl.ts).
+ */
+function flatBuild(): Plugin {
+  let outDir = '';
+  return {
+    name: 'casted-flat-build',
+    apply: 'build',
+    configResolved(c) {
+      outDir = resolve(c.root, c.build.outDir);
+    },
+    transformIndexHtml: (html) => html.replace(/(href|src)="\.\/(?:[\w-]+\/)+([^"/]+)"/g, '$1="./$2"'),
+    closeBundle() {
+      const flatten = (dir: string) => {
+        for (const f of readdirSync(dir)) {
+          const p = join(dir, f);
+          if (statSync(p).isDirectory()) {
+            flatten(p);
+            rmSync(p, { recursive: true });
+          } else if (dir !== outDir) {
+            const to = join(outDir, f);
+            if (existsSync(to)) throw new Error(`flat build: two files named ${f}`);
+            renameSync(p, to);
+          }
+        }
+      };
+      flatten(outDir);
+    },
+  };
+}
+
+/**
  * DRACOLoader points at its default decoders with `new URL('../libs/draco/…', import.meta.url)`, which makes Vite
  * bundle all five files (~1.3 MB, incl. a 719 KB asm.js fallback). LevelLoader sets the glTF WASM decoder itself, so
  * blank those defaults and only the two files it imports ship.
@@ -107,8 +141,8 @@ const VERSION = (JSON.parse(readFileSync(new URL('./package.json', import.meta.u
 export default defineConfig(({ mode }) => ({
   base: './',
   define: { __CASTED_BUILD__: JSON.stringify(`${VERSION}-${mode === 'crazygames' || mode === 'android' ? mode : 'web'}`) },
-  plugins: [levelEditor(), dracoDefaultsOff(), ...(mode === 'crazygames' ? [crazyGamesSdk()] : [])],
-  build: { target: 'es2020', assetsInlineLimit: 0, chunkSizeWarningLimit: 900 },
+  plugins: [levelEditor(), dracoDefaultsOff(), ...(mode === 'crazygames' ? [crazyGamesSdk(), flatBuild()] : [])],
+  build: { target: 'es2020', assetsInlineLimit: 0, chunkSizeWarningLimit: 900, ...(mode === 'crazygames' ? { assetsDir: '' } : {}) },
   server: { host: true },
   // Model loaders are imported lazily; pre-bundle them so the first model level doesn't hit a dev re-optimise (504).
   optimizeDeps: { include: ['three/addons/loaders/GLTFLoader.js', 'three/addons/loaders/DRACOLoader.js'] },

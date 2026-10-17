@@ -4,6 +4,7 @@ import dracoWasmUrl from 'three/examples/jsm/libs/draco/gltf/draco_decoder.wasm?
 import dracoWrapperUrl from 'three/examples/jsm/libs/draco/gltf/draco_wasm_wrapper.js?url';
 import { junkify } from './junkify';
 import { levelPieces, type LevelDef, type LevelObject } from './levels';
+import { assetUrl } from '../util/assetUrl';
 import { SILHOUETTES } from './shapes';
 
 /** Largest silhouette side of a procedural object, in world units. */
@@ -66,7 +67,7 @@ export class LevelLoader {
   model(url: string): Promise<THREE.Object3D> {
     let p = this.models.get(url);
     if (!p) {
-      const bytes = fetch(import.meta.env.BASE_URL + url).then((r) => {
+      const bytes = fetch(assetUrl(url)).then((r) => {
         if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
         return r.arrayBuffer();
       });
