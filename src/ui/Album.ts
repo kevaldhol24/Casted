@@ -1,5 +1,6 @@
 import { isSingle, type LevelDef } from '../levels/levels';
 import { SILHOUETTES, silhouetteBounds } from '../levels/shapes';
+import { assetUrl } from '../util/assetUrl';
 import { el } from './dom';
 
 /**
@@ -66,7 +67,7 @@ function maskImage(level: LevelDef, size: number, color: string): HTMLElement {
   div.className = 'album-art';
   div.style.width = div.style.height = `${size}px`;
   if (!level.mask) return div;
-  const url = `url("${import.meta.env.BASE_URL}${level.mask}")`;
+  const url = `url("${assetUrl(level.mask)}")`;
   div.style.background = color;
   div.style.maskImage = div.style.webkitMaskImage = url;
   div.style.maskSize = div.style.webkitMaskSize = 'contain';

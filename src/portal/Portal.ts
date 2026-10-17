@@ -22,7 +22,7 @@ export interface Portal {
   rewarded(cb?: AdCallbacks): Promise<boolean>;
   /** Rewarded buttons are disabled with a notice when false. */
   rewardedAvailable(): boolean;
-  /** The build has video ads at all; false hides every video offer (the Android app has none). */
+  /** Video ads exist at all; false hides every video offer (the Android app; CrazyGames basic launch). */
   readonly videoAds: boolean;
   /** A rare celebration (a new best), never a plain level solve. */
   happyTime?(): void;
