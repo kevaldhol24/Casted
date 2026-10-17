@@ -41,7 +41,10 @@ Never add Claude/AI attribution (no `Co-Authored-By`, no "Generated with Claude 
   in its `local` environment on localhost (demo ad overlays, SDK calls logged to the console, Data module backed by
   localStorage; `?muteAudio=true` forces the mute setting). Needs network for the SDK script
 - `npm run build:crazygames` — CrazyGames build into `dist-crazygames/` plus
-  `release/casted-crazygames-<version>.zip` for upload: same game plus the SDK script tag
+  `release/casted-crazygames-<version>.zip` for upload. The build is flat (every file at the root, no folders):
+  CrazyGames serves uploaded files from the build root whatever their folder, so `assets/`/`models/` paths were 404.
+  `flatBuild()` in `vite.config.ts` flattens it and `assetUrl()` (`src/util/assetUrl.ts`) maps `models/w1/x.glb` → `x.glb`
+  there; load any new runtime asset path through `assetUrl()`. Same game plus the SDK script tag
   (`https://sdk.crazygames.com/crazygames-sdk-v3.js`, its only off-bundle request). `tools/zip-build.mjs` fails the
   build if a path isn't relative or anything loads from another host. Every other build uses `LocalPortal`
 - `npm run build:android` — web build for the Android app (`--mode android` into `dist/`: `LocalPortal`, no ads,
@@ -152,4 +155,6 @@ solution), and drag with `page.mouse` to verify input (the lamp pad is `.light-p
   `LevelController.suspend()/resume()` fire gameplayStop/Start only on a real change, so they never double-fire.
   The SDK's `muteAudio` setting goes to `Audio.setForcedMute()` and overrides the in-game sound toggle.
   `happytime()` fires only on a new Endless best (CrazyGames: not for plain level solves). Rewarded buttons are off
-  when the SDK reports an adblocker.
+  when the SDK reports an adblocker. In CrazyGames' basic launch every ad request fails with `adsDisabledBasicLaunch`
+  (the QA tool's "Include test ads" shows nothing then): `CrazyGamesPortal` sets `videoAds` false, which hides every
+  video offer as in the Android app.
